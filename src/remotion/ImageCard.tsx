@@ -1,0 +1,364 @@
+"use client";
+
+import {
+  AbsoluteFill,
+  Img,
+  staticFile,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+  interpolate,
+  Easing,
+  random,
+} from "remotion";
+
+type Props = {
+  title: string;
+  names: string;
+  date: string;
+  venue?: string;
+  bg?: string;
+  tier?: "free" | "hd";
+  watermark?: boolean;
+};
+
+const resolve = (src?: string | null) => {
+  if (!src) return null;
+  if (src.startsWith("data:")) return src;
+  const p = src.startsWith("/") ? src : `/${src}`;
+  return staticFile(p);
+};
+
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+
+/* ---- Visual micro-elements -------------------------------------------- */
+
+const Sheen: React.FC<{ x: number; rotate?: number; opacity?: number }> = ({
+  x,
+  rotate = -16,
+  opacity = 0.2,
+}) => (
+  <div
+    style={{
+      position: "absolute",
+      top: "18%",
+      left: x,
+      width: 220,
+      height: "64%",
+      transform: `rotate(${rotate}deg)`,
+      background:
+        "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.75) 50%, rgba(255,255,255,0) 100%)",
+      filter: "blur(8px)",
+      opacity,
+      pointerEvents: "none",
+      mixBlendMode: "overlay",
+    }}
+  />
+);
+
+const Sparkles: React.FC<{ count: number; seed: string }> = ({ count, seed }) => {
+  const frame = useCurrentFrame();
+  const { width, height, fps } = useVideoConfig();
+
+  return (
+    <>
+      {new Array(count).fill(0).map((_, i) => {
+        const r = (k: number) => random(`${seed}-${i}-${k}`);
+        const x = r(0) * width;
+        const y = r(1) * height;
+        // gentle twinkle (also resolves nicely on still frames)
+        const phase = r(2) * Math.PI * 2;
+        const tw = Math.sin((frame / fps) * (0.8 + r(3) * 1.4) + phase);
+        const base = 0.35 + r(4) * 0.55;
+        const o = clamp01(base * (0.45 + 0.55 * (0.5 + 0.5 * tw)));
+        const s = 8 + r(5) * 14;
+
+        return (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              left: x,
+              top: y,
+              width: s,
+              height: s,
+              borderRadius: s,
+              background:
+                "radial-gradient(circle, rgba(255,255,255,0.95), rgba(255,255,255,0) 60%)",
+              filter: "blur(0.6px)",
+              opacity: o * 0.65,
+              mixBlendMode: "plus-lighter",
+            }}
+          />
+        );
+      })}
+    </>
+  );
+};
+
+const Bokeh: React.FC<{ count: number; seed: string }> = ({ count, seed }) => {
+  const frame = useCurrentFrame();
+  const { height, width, fps } = useVideoConfig();
+
+  return (
+    <>
+      {new Array(count).fill(0).map((_, i) => {
+        const r = (t: number) => random(`${seed}-${i}-${t}`);
+        const size = 40 + r(0) * 70;
+        const startX = r(1) * (width + 200) - 100;
+        const baseY = r(2) * height;
+        const speed = 12 + r(3) * 22; // px/sec
+        const drift = Math.sin((frame / fps) * 1.2 + r(4) * 6.28) * 60;
+
+        // slow upward float; still renders catch a nice snapshot
+        const y = (baseY - (frame / fps) * speed) % (height + 120);
+        const x = startX + drift;
+
+        const o = 0.12 + r(5) * 0.15;
+        return (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              left: x,
+              top: y,
+              width: size,
+              height: size,
+              borderRadius: size,
+              background:
+                "radial-gradient(circle at 30% 30%, rgba(255,255,255,0.35), rgba(255,255,255,0.0) 60%)",
+              filter: "blur(0.5px)",
+              opacity: o,
+              mixBlendMode: "screen",
+            }}
+          />
+        );
+      })}
+    </>
+  );
+};
+
+/* ---- Main still composition ------------------------------------------- */
+
+export const ImageCard: React.FC<Props> = ({
+  title,
+  names,
+  date,
+  venue,
+  bg,
+  tier = "free",
+  watermark,
+}) => {
+  const frame = useCurrentFrame();
+  const { fps, width, height, durationInFrames } = useVideoConfig();
+  const intro = spring({ frame, fps, config: { damping: 200, mass: 0.9 } });
+
+  const showRibbon = tier === "free" || watermark;
+  const bgSrc = resolve(bg);
+
+  // rotating conic glow for premium feel
+  const angle = interpolate(frame, [0, durationInFrames || 150], [0, 360], {
+    easing: Easing.linear,
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
+
+  // subtle Ken-Burns on background
+  const kbScale = interpolate(frame, [0, 120], [1.06, 1.1], { extrapolateRight: "extend" });
+
+  // sheen sweep across the card
+  const sheenX = interpolate(frame % Math.round(fps * 2.2), [0, fps * 2.2], [-300, width + 300]);
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: "#070707" }}>
+      {/* conic ambient glow */}
+      <div
+        style={{
+          position: "absolute",
+          inset: "-18%",
+          background: `conic-gradient(from ${angle}deg, #FFB74D, #FF7043, #F06292, #7C4DFF, #FFB74D)`,
+          filter: "blur(60px) saturate(1.1)",
+          opacity: 0.55,
+        }}
+      />
+
+      {/* background image (or gradient) */}
+      {bgSrc ? (
+        <Img
+          src={bgSrc}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            transform: `scale(${kbScale})`,
+            filter: "saturate(1.05) contrast(1.03)",
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "linear-gradient(135deg,#FFB74D 0%,#FF7043 45%,#F06292 100%)",
+          }}
+        />
+      )}
+
+      {/* atmosphere */}
+      <Bokeh count={22} seed="bokeh-still" />
+      <Sparkles count={16} seed="sparkles-still" />
+
+      {/* legibility veil */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(0,0,0,0.25) 70%, rgba(0,0,0,0.55))",
+        }}
+      />
+
+      {/* golden frame wrapper */}
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          transform: `translate(-50%,-50%) scale(${0.96 + intro * 0.04})`,
+          width: Math.min(860, width * 0.9),
+          borderRadius: 30,
+          padding: 2,
+          background:
+            "linear-gradient(135deg, #FFD36E 0%, #FF9A5A 20%, #FF5FA8 55%, #8B6CFF 85%, #FFD36E 100%)",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.35)",
+        }}
+      >
+        {/* inner card */}
+        <div
+          style={{
+            position: "relative",
+            borderRadius: 28,
+            padding: "36px 32px 30px",
+            textAlign: "center",
+            background: "rgba(255,255,255,0.94)",
+            border: "1px solid rgba(255,255,255,0.75)",
+            boxShadow: "0 12px 50px rgba(0,0,0,0.22)",
+            overflow: "hidden",
+          }}
+        >
+          {/* gentle wash */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background:
+                "radial-gradient(ellipse at 28% 0%, rgba(255,210,140,0.26), rgba(255,255,255,0) 65%)",
+              pointerEvents: "none",
+            }}
+          />
+          {/* sheen sweep */}
+          <Sheen x={sheenX} opacity={0.16} />
+
+          <h1
+            style={{
+              fontSize: 52,
+              margin: 0,
+              color: "#0f172a",
+              lineHeight: 1.06,
+              letterSpacing: 0.2,
+              textShadow: "0 1px 0 rgba(255,255,255,0.6)",
+            }}
+          >
+            {title}
+          </h1>
+
+          <div
+            style={{
+              marginTop: 14,
+              display: "inline-block",
+              borderRadius: 999,
+              padding: 1,
+              background:
+                "linear-gradient(90deg, rgba(255,211,110,1), rgba(255,95,168,1), rgba(139,108,255,1))",
+            }}
+          >
+            <div
+              style={{
+                borderRadius: 999,
+                padding: "8px 14px",
+                background: "rgba(255,255,255,0.96)",
+                color: "#111827",
+                fontWeight: 700,
+                fontSize: 20,
+              }}
+            >
+              {names}
+            </div>
+          </div>
+
+          <div
+            style={{
+              marginTop: 12,
+              height: 1,
+              width: 180,
+              marginInline: "auto",
+              background:
+                "linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,0.28), rgba(0,0,0,0))",
+              opacity: 0.6,
+            }}
+          />
+
+          <p
+            style={{
+              fontSize: 18,
+              margin: "10px 0 0",
+              color: "#475569",
+            }}
+          >
+            {date}
+            {venue ? ` · ${venue}` : ""}
+          </p>
+        </div>
+      </div>
+
+      {/* watermark ribbon on FREE */}
+      {showRibbon && (
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            padding: "10px 14px",
+            background:
+              "linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.75) 100%)",
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            fontWeight: 700,
+            letterSpacing: 0.4,
+            fontSize: 16,
+            textShadow: "0 1px 2px rgba(0,0,0,0.6)",
+          }}
+        >
+          <span style={{ opacity: 0.9 }}>Made with Festival Invites</span>
+          <span
+            style={{
+              fontSize: 12,
+              padding: "2px 8px",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.18)",
+              border: "1px solid rgba(255,255,255,0.25)",
+            }}
+          >
+            FREE PREVIEW
+          </span>
+        </div>
+      )}
+    </AbsoluteFill>
+  );
+};

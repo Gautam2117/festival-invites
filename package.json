@@ -9,22 +9,39 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.787.0",
+    "@aws-sdk/lib-storage": "3.787.0",
+    "@aws-sdk/s3-request-presigner": "^3.864.0",
+    "@remotion/bundler": "^4.0.334",
+    "@remotion/lambda": "^4.0.334",
+    "@remotion/lambda-client": "4.0.334",
     "@remotion/player": "^4.0.334",
+    "@remotion/renderer": "^4.0.334",
     "date-fns": "^4.1.0",
+    "ffmpeg-static": "^5.2.0",
+    "framer-motion": "^12.23.12",
+    "lucide-react": "^0.539.0",
     "next": "15.4.6",
+    "razorpay": "^2.9.6",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "zod": "^4.0.17"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@remotion/cli": "^4.0.334",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.4.6",
+    "remotion": "^4.0.334",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "@aws-sdk/client-s3": "3.787.0",
+    "@aws-sdk/lib-storage": "3.787.0"
   }
 }

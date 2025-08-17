@@ -1,14 +1,27 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* Tailwind v4: declare your design tokens here */
+@theme {
+  /* Fonts (wired to next/font variables) */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-display: var(--font-hind), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+
+  /* Colors */
+  --color-ink-900: #0B0F19;
+  --color-ink-700: #1F2937;
+  --color-ink-500: #374151;
+
+  --color-brand-600: #2563EB;
+  --color-brand-700: #1D4ED8;
+
+  /* Radius + shadow tokens used by custom utilities below */
+  --radius-xl2: 1rem;
+  --shadow-soft: 0 10px 30px rgba(0,0,0,0.06);
+}
 
 @layer base {
-  html, body {
-    @apply h-full;
-  }
-  a {
-    @apply text-brand-600 hover:text-brand-700 transition-colors;
-  }
+  html, body { @apply h-full; }
+  a { @apply text-brand-600 hover:text-brand-700 transition-colors; }
 }
 
 @layer components {
