@@ -1,10 +1,5 @@
 // src/app/api/export/route.ts
-import path from "path";
-import os from "os";
-import fs from "fs/promises";
 import { NextResponse } from "next/server";
-import { bundle } from "@remotion/bundler";
-import { renderMedia, selectComposition } from "@remotion/renderer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,18 +7,34 @@ export const maxDuration = 60;
 
 type Body = {
   compositionId: "festival-intro" | "image-card";
-  inputProps: Record<string, any>;
-  fps?: number;
-  durationInFrames?: number;
-  width?: number;
-  height?: number;
+  inputProps: Record<string, unknown>;
+  // (optional overrides omitted for brevity)
 };
 
 export async function POST(req: Request) {
+  // 🚧 Disable this route on Vercel / production — use /api/lambda/* in prod
+  const isProd = process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
+  if (isProd) {
+    return NextResponse.json(
+      { error: "Local renderer is disabled on production. Use /api/lambda/* endpoints." },
+      { status: 400 }
+    );
+  }
+
   try {
     const { compositionId, inputProps } = (await req.json()) as Body;
 
-    const entry = path.join(process.cwd(), "src", "remotion", "entry.tsx");
+    // Lazy-load everything so Remotion bundler never gets included in prod builds
+    const [{ bundle }, { renderMedia, selectComposition }, pathMod, osMod, fs] =
+      await Promise.all([
+        import("@remotion/bundler"),
+        import("@remotion/renderer"),
+        import("node:path"),
+        import("node:os"),
+        import("node:fs/promises"),
+      ]);
+
+    const entry = pathMod.join(process.cwd(), "src", "remotion", "entry.tsx");
 
     // 1) Bundle Remotion entry
     const serveUrl = await bundle({ entryPoint: entry });
@@ -35,8 +46,11 @@ export async function POST(req: Request) {
       inputProps,
     });
 
-    // 3) Render to temp file
-    const outPath = path.join(os.tmpdir(), `export_${compositionId}_${Date.now()}.mp4`);
+    // 3) Render to a temp MP4 (H.264)
+    const outPath = pathMod.join(
+      osMod.tmpdir(),
+      `export_${compositionId}_${Date.now()}.mp4`
+    );
 
     await renderMedia({
       serveUrl,
@@ -46,9 +60,9 @@ export async function POST(req: Request) {
       inputProps,
     });
 
-    // 4) Read file and return as Uint8Array (NOT Buffer / ArrayBuffer)
-    const fileBuf = await fs.readFile(outPath);      // Buffer
-    const u8 = Uint8Array.from(fileBuf);             // ✅ fresh ArrayBufferView -> valid BodyInit
+    // 4) Read file and return as Uint8Array (valid BodyInit)
+    const fileBuf = await fs.readFile(outPath); // Buffer
+    const u8 = new Uint8Array(fileBuf); // ✅ ArrayBufferView
 
     const res = new NextResponse(u8, {
       headers: {
@@ -63,6 +77,9 @@ export async function POST(req: Request) {
     fs.unlink(outPath).catch(() => {});
     return res;
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "Export failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: e?.message ?? "Export failed" },
+      { status: 500 }
+    );
   }
 }
