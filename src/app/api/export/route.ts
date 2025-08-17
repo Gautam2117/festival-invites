@@ -1,4 +1,7 @@
 // src/app/api/export/route.ts
+import path from "path";
+import os from "os";
+import fs from "fs/promises";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -8,49 +11,36 @@ export const maxDuration = 60;
 type Body = {
   compositionId: "festival-intro" | "image-card";
   inputProps: Record<string, unknown>;
-  // (optional overrides omitted for brevity)
+  fps?: number;
+  durationInFrames?: number;
+  width?: number;
+  height?: number;
 };
 
 export async function POST(req: Request) {
-  // 🚧 Disable this route on Vercel / production — use /api/lambda/* in prod
-  const isProd = process.env.VERCEL === "1" || process.env.NODE_ENV === "production";
-  if (isProd) {
-    return NextResponse.json(
-      { error: "Local renderer is disabled on production. Use /api/lambda/* endpoints." },
-      { status: 400 }
-    );
-  }
-
   try {
     const { compositionId, inputProps } = (await req.json()) as Body;
 
-    // Lazy-load everything so Remotion bundler never gets included in prod builds
-    const [{ bundle }, { renderMedia, selectComposition }, pathMod, osMod, fs] =
-      await Promise.all([
-        import("@remotion/bundler"),
-        import("@remotion/renderer"),
-        import("node:path"),
-        import("node:os"),
-        import("node:fs/promises"),
-      ]);
+    // ✅ Dynamically import Remotion libs at runtime (not during build)
+    const [{ bundle }, { renderMedia, selectComposition }] = await Promise.all([
+      import("@remotion/bundler"),
+      import("@remotion/renderer"),
+    ]);
 
-    const entry = pathMod.join(process.cwd(), "src", "remotion", "entry.tsx");
+    const entry = path.join(process.cwd(), "src", "remotion", "entry.tsx");
 
-    // 1) Bundle Remotion entry
+    // 1) Bundle your Remotion entry
     const serveUrl = await bundle({ entryPoint: entry });
 
-    // 2) Pick composition
+    // 2) Pick the composition and pass input props
     const comp = await selectComposition({
       serveUrl,
       id: compositionId,
       inputProps,
     });
 
-    // 3) Render to a temp MP4 (H.264)
-    const outPath = pathMod.join(
-      osMod.tmpdir(),
-      `export_${compositionId}_${Date.now()}.mp4`
-    );
+    // 3) Render to a temp file (MP4 H.264)
+    const outPath = path.join(os.tmpdir(), `export_${compositionId}_${Date.now()}.mp4`);
 
     await renderMedia({
       serveUrl,
@@ -58,11 +48,12 @@ export async function POST(req: Request) {
       codec: "h264",
       outputLocation: outPath,
       inputProps,
+      // chromiumOptions: { gl: "angle" }, // if you need it later
     });
 
-    // 4) Read file and return as Uint8Array (valid BodyInit)
+    // 4) Stream back as Uint8Array
     const fileBuf = await fs.readFile(outPath); // Buffer
-    const u8 = new Uint8Array(fileBuf); // ✅ ArrayBufferView
+    const u8 = new Uint8Array(fileBuf); // ArrayBufferView -> valid BodyInit
 
     const res = new NextResponse(u8, {
       headers: {
@@ -73,13 +64,11 @@ export async function POST(req: Request) {
       },
     });
 
-    // Cleanup (don’t await)
+    // Cleanup (fire-and-forget)
     fs.unlink(outPath).catch(() => {});
     return res;
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? "Export failed" },
-      { status: 500 }
-    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: msg || "Export failed" }, { status: 500 });
   }
 }
