@@ -1,74 +1,101 @@
 // src/app/api/export/route.ts
-import path from "path";
-import os from "os";
-import fs from "fs/promises";
 import { NextResponse } from "next/server";
+import {
+  renderMediaOnLambda,
+  renderStillOnLambda,
+  getRenderProgress,
+  type AwsRegion,
+} from "@remotion/lambda";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
+// ---- Env (fail fast) -------------------------------------------------
+const REGION = (process.env.REMOTION_REGION ?? "ap-south-1") as AwsRegion;
+const BUCKET = process.env.REMOTION_BUCKET_NAME!;
+const FUNCTION_NAME = process.env.REMOTION_FUNCTION_NAME!;
+const SERVE_URL = process.env.REMOTION_SERVE_URL!;
+
+if (!BUCKET || !FUNCTION_NAME || !SERVE_URL) {
+  throw new Error(
+    "Missing env: REMOTION_REGION / REMOTION_BUCKET_NAME / REMOTION_FUNCTION_NAME / REMOTION_SERVE_URL"
+  );
+}
+
+// ---- Types ------------------------------------------------------------
 type Body = {
   compositionId: "festival-intro" | "image-card";
   inputProps: Record<string, unknown>;
-  fps?: number;
-  durationInFrames?: number;
-  width?: number;
-  height?: number;
+  imageFormat?: "png" | "jpeg";
 };
 
+// ---- Route ------------------------------------------------------------
 export async function POST(req: Request) {
   try {
-    const { compositionId, inputProps } = (await req.json()) as Body;
+    const { compositionId, inputProps, imageFormat = "png" } =
+      (await req.json()) as Body;
 
-    // ✅ Dynamically import Remotion libs at runtime (not during build)
-    const [{ bundle }, { renderMedia, selectComposition }] = await Promise.all([
-      import("@remotion/bundler"),
-      import("@remotion/renderer"),
-    ]);
+    const isStill = compositionId === "image-card";
+    let renderId: string;
 
-    const entry = path.join(process.cwd(), "src", "remotion", "entry.tsx");
+    if (isStill) {
+      const res = await renderStillOnLambda({
+        functionName: FUNCTION_NAME,
+        serveUrl: SERVE_URL,
+        composition: compositionId,
+        inputProps,
+        region: REGION,
+        imageFormat,
+        privacy: "public",
+      });
+      renderId = res.renderId;
+    } else {
+      const res = await renderMediaOnLambda({
+        functionName: FUNCTION_NAME,
+        serveUrl: SERVE_URL,
+        composition: compositionId,
+        inputProps,
+        region: REGION,
+        codec: "h264",
+        privacy: "public",
+      });
+      renderId = res.renderId;
+    }
 
-    // 1) Bundle your Remotion entry
-    const serveUrl = await bundle({ entryPoint: entry });
+    const timeoutMs = isStill ? 60_000 : 240_000;
+    const deadline = Date.now() + timeoutMs;
 
-    // 2) Pick the composition and pass input props
-    const comp = await selectComposition({
-      serveUrl,
-      id: compositionId,
-      inputProps,
-    });
+    let attempt = 0;
+    while (Date.now() < deadline) {
+      const prog = await getRenderProgress({
+        renderId,
+        bucketName: BUCKET,
+        region: REGION,
+        functionName: FUNCTION_NAME,
+      });
 
-    // 3) Render to a temp file (MP4 H.264)
-    const outPath = path.join(os.tmpdir(), `export_${compositionId}_${Date.now()}.mp4`);
+      if (prog.fatalErrorEncountered) {
+        throw new Error(prog.errors?.[0]?.message ?? "Render failed on Lambda");
+      }
 
-    await renderMedia({
-      serveUrl,
-      composition: comp,
-      codec: "h264",
-      outputLocation: outPath,
-      inputProps,
-      // chromiumOptions: { gl: "angle" }, // if you need it later
-    });
+      if (prog.done && prog.outputFile) {
+        return NextResponse.json({
+          url: prog.outputFile,
+          size: prog.outputSizeInBytes,
+          timeInSeconds: prog.timeToFinish,
+        });
+      }
 
-    // 4) Stream back as Uint8Array
-    const fileBuf = await fs.readFile(outPath); // Buffer
-    const u8 = new Uint8Array(fileBuf); // ArrayBufferView -> valid BodyInit
+      attempt += 1;
+      const delay =
+        1000 * Math.min(10, Math.pow(1.5, attempt)) + Math.random() * 250;
+      await new Promise((r) => setTimeout(r, delay));
+    }
 
-    const res = new NextResponse(u8, {
-      headers: {
-        "Content-Type": "video/mp4",
-        "Content-Length": String(u8.byteLength),
-        "Content-Disposition": `attachment; filename="${compositionId}.mp4"`,
-        "Cache-Control": "no-store",
-      },
-    });
-
-    // Cleanup (fire-and-forget)
-    fs.unlink(outPath).catch(() => {});
-    return res;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ error: msg || "Export failed" }, { status: 500 });
+    throw new Error("Timed out waiting for Lambda render to finish.");
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Lambda export error";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
