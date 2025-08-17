@@ -1,4 +1,13 @@
+/**
+ * The whole Builder UI is fully client-side.  Telling Next.js that
+ * this page is “force-dynamic” prevents the static prerender pass
+ * (which is what was triggering the “useSearchParams() should be
+ * wrapped in a suspense boundary” build error).
+ */
 "use client";
+export const dynamic = "force-dynamic";
+
+import { Suspense } from "react";
 
 import Script from "next/script";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -66,7 +75,7 @@ function downloadFromUrl(url: string, filename: string) {
   setTimeout(() => window.open(url, "_blank", "noopener"), 900);
 }
 
-export default function BuilderPage() {
+function BuilderPageInner() {
   const params = useSearchParams();
   const preselect = params.get("template") || "diwali";
 
@@ -724,5 +733,13 @@ export default function BuilderPage() {
         </div>
       </main>
     </>
+  );
+}
+
+export default function BuilderPage() {
+  return (
+    <Suspense fallback={null /* or a fancy loader */}>
+      <BuilderPageInner />
+    </Suspense>
   );
 }
