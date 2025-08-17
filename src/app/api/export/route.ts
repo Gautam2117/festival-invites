@@ -1,37 +1,22 @@
 // src/app/api/export/route.ts
 import { NextResponse } from "next/server";
-import {
-  renderMediaOnLambda,
-  renderStillOnLambda,
-  getRenderProgress,
-  type AwsRegion,
-} from "@remotion/lambda";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300; // keep serverless timeout safe—Lambda does the heavy lifting
+export const maxDuration = 300; // safe serverless limit; Lambda does the heavy work
 
-/* ---------------------------
-   Environment (fail fast)
-   --------------------------- */
-const REGION = (
-  (process.env.REMOTION_REGION ??
-    process.env.REMOTION_AWS_REGION ??
-    "ap-south-1") as AwsRegion
-);
-
+// Environment (fail fast)
+const REGION = process.env.REMOTION_REGION ?? process.env.REMOTION_AWS_REGION ?? "ap-south-1";
 const BUCKET =
   process.env.REMOTION_BUCKET_NAME ??
   process.env.REMOTION_AWS_BUCKET ??
   process.env.REMOTION_BUCKET ??
   "";
-
 const FUNCTION_NAME =
   process.env.REMOTION_FUNCTION_NAME ??
   process.env.REMOTION_AWS_FUNCTION ??
   process.env.REMOTION_FUNCTION ??
   "";
-
 const SERVE_URL =
   process.env.REMOTION_SERVE_URL ??
   process.env.NEXT_PUBLIC_REMOTION_SERVE_URL ??
@@ -39,101 +24,89 @@ const SERVE_URL =
   "";
 
 if (!BUCKET || !FUNCTION_NAME || !SERVE_URL) {
-  // Throw at module load so misconfigured deploys fail early
   throw new Error(
-    "Missing one of REMOTION_REGION / REMOTION_BUCKET_NAME / REMOTION_FUNCTION_NAME / REMOTION_SERVE_URL environment variables"
+    "Missing env: REMOTION_REGION / REMOTION_BUCKET_NAME / REMOTION_FUNCTION_NAME / REMOTION_SERVE_URL"
   );
 }
 
-/* ---------------------------
-   Request body type
-   --------------------------- */
 type Body = {
   compositionId: "festival-intro" | "image-card";
   inputProps: Record<string, unknown>;
-  // optional override for stills
   imageFormat?: "png" | "jpeg";
-  // optional hint from client (free/hd) if you want to change inputProps
   quality?: "free" | "hd";
 };
 
-/* ---------------------------
-   POST handler — start render & poll
-   --------------------------- */
 export async function POST(req: Request) {
   try {
-    const { compositionId, inputProps, imageFormat = "png" } =
-      (await req.json()) as Body;
+    const { compositionId, inputProps, imageFormat = "png" } = (await req.json()) as Body;
 
     const isStill = compositionId === "image-card";
+
+    // Dynamically import @remotion/lambda at runtime so Next.js build doesn't try to bundle Studio.
+    // Use `as any` to avoid strict type mismatches at build time.
+    const lambda = (await import("@remotion/lambda")) as any;
+    const { renderMediaOnLambda, renderStillOnLambda, getRenderProgress } = lambda;
+
     let renderId: string;
 
-    // 1) Kick off Lambda render (use renderStillOnLambda for stills)
     if (isStill) {
-      const res = await renderStillOnLambda({
-        // NOTE: do not use `downloadBehavior: { type: "bucket", ... }` here
-        // unless your @remotion/lambda package version supports it.
+      const start = await renderStillOnLambda({
         functionName: FUNCTION_NAME,
         serveUrl: SERVE_URL,
         composition: compositionId,
         inputProps,
-        region: REGION,
+        region: REGION as any,
         imageFormat, // "png" | "jpeg"
-        privacy: "public", // makes S3 object readable (signed URL still returned)
-      });
-      renderId = res.renderId;
+        // privacy public makes objects public; keep signed URL behavior safe on the SDK side
+        privacy: "public",
+      } as any);
+      renderId = start.renderId;
     } else {
-      const res = await renderMediaOnLambda({
+      const start = await renderMediaOnLambda({
         functionName: FUNCTION_NAME,
         serveUrl: SERVE_URL,
         composition: compositionId,
         inputProps,
-        region: REGION,
+        region: REGION as any,
         codec: "h264",
         privacy: "public",
-      });
-      renderId = res.renderId;
+      } as any);
+      renderId = start.renderId;
     }
 
-    // 2) Poll for progress with exponential backoff + jitter
-    const timeoutMs = isStill ? 60_000 : 240_000; // 1m for still, 4m for video
+    // Poll for progress
+    const timeoutMs = isStill ? 60_000 : 240_000;
     const deadline = Date.now() + timeoutMs;
     let attempt = 0;
 
     while (Date.now() < deadline) {
-      // get status
       const prog = await getRenderProgress({
         renderId,
-        // this parameter is expected by the SDK's progress call
         bucketName: BUCKET,
-        region: REGION,
+        region: REGION as any,
         functionName: FUNCTION_NAME,
-      });
+      } as any);
 
-      // fatal => bubble up
-      if (prog.fatalErrorEncountered) {
+      if (prog?.fatalErrorEncountered) {
         throw new Error(prog.errors?.[0]?.message ?? "Render failed on Lambda");
       }
 
-      // finished: getRenderProgress returns outputFile (signed URL) when ready
-      if (prog.done && prog.outputFile) {
+      if (prog?.done && prog?.outputFile) {
         return NextResponse.json({
-          url: prog.outputFile,
+          url: prog.outputFile, // presigned URL (or public URL depending on SDK flags)
           size: prog.outputSizeInBytes ?? null,
           timeInSeconds: prog.timeToFinish ?? null,
         });
       }
 
-      // backoff: 1s → 1.5s → 2.25s … capped + jitter
       attempt += 1;
-      const base = Math.min(10, Math.pow(1.5, attempt));
-      const delay = Math.round(1000 * base + Math.random() * 250);
-      await new Promise((res) => setTimeout(res, delay));
+      const delay = Math.round(1000 * Math.min(10, Math.pow(1.5, attempt)) + Math.random() * 250);
+      await new Promise((r) => setTimeout(r, delay));
     }
 
     throw new Error("Timed out waiting for Lambda render to finish.");
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown Lambda export error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const msg = err instanceof Error ? err.message : "Unknown Lambda export error";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
