@@ -6,6 +6,7 @@ export const defaultMusicByTemplate: Record<
   string,
   { file: string; label: string; volume: number }
 > = {
+  // Core (existing)
   diwali: { file: "assets/music/sitar-chill.mp3", label: "Sitar Chill", volume: 0.8 },
   "ganesh-chaturthi": { file: "assets/music/dhol-tasha.mp3", label: "Dhol Tasha", volume: 0.95 },
   janmashtami: { file: "assets/music/bansuri-krishna.mp3", label: "Bansuri Krishna", volume: 0.85 },
@@ -14,6 +15,28 @@ export const defaultMusicByTemplate: Record<
   anniversary: { file: "assets/music/shehnai-celebration.mp3", label: "Shehnai Celebration", volume: 0.8 },
   "new-year": { file: "assets/music/festive-brass.mp3", label: "Festive Brass", volume: 0.9 },
   eid: { file: "assets/music/sufi-soft.mp3", label: "Sufi Soft", volume: 0.8 },
+
+  // More festivals
+  holi: { file: "assets/music/dhol-tasha.mp3", label: "Dhol Tasha", volume: 0.95 },
+  "raksha-bandhan": { file: "assets/music/shehnai-celebration.mp3", label: "Shehnai Celebration", volume: 0.85 },
+  lohri: { file: "assets/music/dhol-tasha.mp3", label: "Dhol Tasha", volume: 0.95 },
+  "makar-sankranti": { file: "assets/music/sitar-chill.mp3", label: "Sitar Chill", volume: 0.85 },
+  pongal: { file: "assets/music/shehnai-celebration.mp3", label: "Shehnai Celebration", volume: 0.85 },
+  onam: { file: "assets/music/sitar-chill.mp3", label: "Sitar Chill", volume: 0.85 },
+  "karwa-chauth": { file: "assets/music/shehnai-celebration.mp3", label: "Shehnai Celebration", volume: 0.8 },
+  "bhai-dooj": { file: "assets/music/sitar-chill.mp3", label: "Sitar Chill", volume: 0.85 },
+  "ram-navami": { file: "assets/music/bansuri-krishna.mp3", label: "Bansuri Krishna", volume: 0.85 },
+  "hanuman-jayanti": { file: "assets/music/bansuri-krishna.mp3", label: "Bansuri Krishna", volume: 0.85 },
+  "eid-al-adha": { file: "assets/music/sufi-soft.mp3", label: "Sufi Soft", volume: 0.8 },
+  christmas: { file: "assets/music/festive-brass.mp3", label: "Festive Brass", volume: 0.9 },
+
+  // Daily wishes
+  "good-morning": { file: "assets/music/sitar-chill.mp3", label: "Sitar Chill", volume: 0.65 },
+  "good-night": { file: "assets/music/sufi-soft.mp3", label: "Sufi Soft", volume: 0.6 },
+  congratulations: { file: "assets/music/festive-brass.mp3", label: "Festive Brass", volume: 0.9 },
+  "best-of-luck": { file: "assets/music/sitar-chill.mp3", label: "Sitar Chill", volume: 0.7 },
+  "get-well-soon": { file: "assets/music/sufi-soft.mp3", label: "Sufi Soft", volume: 0.6 },
+  "thank-you": { file: "assets/music/sitar-chill.mp3", label: "Sitar Chill", volume: 0.7 },
 };
 
 // Dropdown choices (including Auto + None)

@@ -7,7 +7,7 @@
 "use client";
 export const dynamic = "force-dynamic";
 
-import { Suspense } from "react";
+import { Suspense, useCallback } from "react";
 
 import Script from "next/script";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -23,6 +23,9 @@ import {
   Upload,
   Download,
   CheckCircle2,
+  Share2,
+  Copy as CopyIcon,
+  Link2,
 } from "lucide-react";
 
 import { FestivalIntro } from "@/remotion/FestivalIntro";
@@ -37,14 +40,37 @@ import {
   curatedMap,
 } from "@/lib/media-presets";
 
-const formSchema = z.object({
+/** Wish-only slugs: no names/date/venue needed */
+const WISH_SLUGS = new Set([
+  "good-morning",
+  "good-night",
+  "congratulations",
+  "best-of-luck",
+  "get-well-soon",
+  "thank-you",
+]);
+
+const baseSchema = z.object({
   template: z.string().min(1),
   language: z.enum(["en", "hi", "hinglish"]),
-  names: z.string().min(1, "Who’s hosting?"),
-  title: z.string().min(1, "Event title is required"),
-  date: z.string().min(1, "Date required"),
+  title: z.string().min(1, "Title is required"),
+  names: z.string().optional(),
+  date: z.string().optional(),
   venue: z.string().optional(),
 });
+
+/** Build a dynamic schema based on whether the template is an event vs wish */
+function schemaFor(slug: string) {
+  if (WISH_SLUGS.has(slug)) {
+    return baseSchema; // only title required
+  }
+  return baseSchema
+    .extend({
+      names: z.string().min(1, "Who’s hosting?"),
+      date: z.string().min(1, "Date required"),
+    })
+    .required();
+}
 
 type Mode = "video" | "image";
 type TrackId = (typeof curatedTracks)[number]["id"];
@@ -52,6 +78,7 @@ type TrackId = (typeof curatedTracks)[number]["id"];
 declare global {
   interface Window {
     Razorpay: any;
+    ClipboardItem: any;
   }
 }
 
@@ -73,6 +100,47 @@ function downloadFromUrl(url: string, filename: string) {
   a.click();
   a.remove();
   setTimeout(() => window.open(url, "_blank", "noopener"), 900);
+}
+
+async function copyToClipboard(txt: string) {
+  try {
+    await navigator.clipboard.writeText(txt);
+    alert("Link copied!");
+  } catch {
+    // silent
+  }
+}
+
+function shareToWhatsApp(url: string, message = "Check this out!") {
+  const shareText = `${message} ${url}`;
+  const wa = `https://wa.me/?text=${encodeURIComponent(shareText)}`;
+  window.open(wa, "_blank", "noopener");
+}
+
+async function shareFileOrLink(url: string, filename: string, mimeHint: string, title = "Festival Invites") {
+  try {
+    if (navigator.share) {
+      // Try file share first (iOS/Android support); fallback to link share.
+      try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        const type = blob.type || mimeHint;
+        const file = new File([blob], filename, { type });
+
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title, text: "Made with Festival Invites" });
+          return;
+        }
+      } catch {
+        // ignore and try link share
+      }
+      await navigator.share({ url, title, text: "Made with Festival Invites" });
+      return;
+    }
+  } catch {
+    // ignore
+  }
+  await copyToClipboard(url);
 }
 
 function BuilderPageInner() {
@@ -103,6 +171,7 @@ function BuilderPageInner() {
 
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [downloadName, setDownloadName] = useState<string>("invite.mp4");
+  const hasOutput = !!downloadUrl;
 
   // Background
   const [customBgDataUrl, setCustomBgDataUrl] = useState<string | null>(null);
@@ -120,6 +189,13 @@ function BuilderPageInner() {
     customMusic ?? (trackId === "auto" ? autoPreset.file : trackId === "none" ? null : musicFromCurated);
 
   const isVideo = mode === "video";
+  const isWish = WISH_SLUGS.has(template);
+
+  // Stronger anti-crop watermark hints (used by Remotion comps that support them)
+  const wmSeed = useMemo(() => Math.floor(Math.random() * 1e9), [template, language]);
+  const wmText = "Festival Invites — FREE PREVIEW";
+  const wmStrategy: "ribbon" | "tile" | "ribbon+tile" = "ribbon+tile";
+  const wmOpacity = 0.18; // subtle but visible
 
   function handleContinue() {
     document.getElementById("preview")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -182,6 +258,9 @@ function BuilderPageInner() {
         isVideo ? "festival-intro" : "image-card";
       const endpoint = isVideo ? "/api/lambda/queue" : "/api/lambda/still";
 
+      // NEW: short per-export fingerprint
+      const watermarkId = `wm_${Math.random().toString(36).slice(2, 8)}`;
+
       const payload: any = {
         compositionId,
         quality,
@@ -194,6 +273,14 @@ function BuilderPageInner() {
           music: musicForRender,
           musicVolume,
           tier: quality === "free" ? "free" : "hd",
+          // stronger watermark signals for FREE renders (backward compatible)
+          watermark: quality === "free",
+          watermarkStrategy: quality === "free" ? wmStrategy : "ribbon",
+          wmSeed,
+          wmText,
+          wmOpacity,
+          isWish,
+          watermarkId, // NEW
         },
       };
       if (!isVideo) {
@@ -216,7 +303,9 @@ function BuilderPageInner() {
 
       // Always sign final URL server-side (avoids S3 CORS headaches)
       const signed = await fetch(
-        `/api/lambda/file?bucketName=${queued.bucketName}&outKey=${encodeURIComponent(guessedKey)}&ext=${ext}`
+        `/api/lambda/file?bucketName=${queued.bucketName}&outKey=${encodeURIComponent(
+          guessedKey
+        )}&ext=${ext}`
       ).then((r) => r.json());
       if (!signed?.url) throw new Error("Failed to presign output URL");
 
@@ -265,7 +354,9 @@ function BuilderPageInner() {
       } else {
         while (Date.now() < deadline) {
           const probe = await fetch(
-            `/api/lambda/probe?bucketName=${queued.bucketName}&outKey=${encodeURIComponent(guessedKey)}`
+            `/api/lambda/probe?bucketName=${queued.bucketName}&outKey=${encodeURIComponent(
+              guessedKey
+            )}`
           ).then((r) => r.json());
 
           if (probe?.exists) {
@@ -294,11 +385,11 @@ function BuilderPageInner() {
   const syncDefaults = (slug: string, lang: Lang) => {
     const next = getDefaults(slug, lang);
     const prev = defaultsRef.current;
-    const same = (a: string, b: string) => a.trim() === b.trim();
+    const same = (a: string, b: string) => (a ?? "").trim() === (b ?? "").trim();
     if (same(title, prev.title)) setTitle(next.title);
-    if (same(names, prev.names)) setNames(next.names);
-    if (same(date, prev.date)) setDate(next.date);
-    if (same(venue, prev.venue)) setVenue(next.venue);
+    if (same(names ?? "", prev.names ?? "")) setNames(next.names ?? "");
+    if (same(date ?? "", prev.date ?? "")) setDate(next.date ?? "");
+    if (same(venue ?? "", prev.venue ?? "")) setVenue(next.venue ?? "");
     defaultsRef.current = next;
   };
 
@@ -314,7 +405,8 @@ function BuilderPageInner() {
   }, [template, language, customMusic]);
 
   useEffect(() => {
-    const parsed = formSchema.safeParse({ template, language, names, title, date, venue });
+    const schema = schemaFor(template);
+    const parsed = schema.safeParse({ template, language, names, title, date, venue });
     if (!parsed.success) {
       const e: Record<string, string> = {};
       for (const issue of parsed.error.issues) e[issue.path[0] as string] = issue.message;
@@ -324,6 +416,13 @@ function BuilderPageInner() {
 
   const labels = copy[language].labels;
   const tierPreview: "free" | "hd" = paid ? "hd" : "free";
+
+  const handleShare = useCallback(async () => {
+    if (!downloadUrl) return;
+    const isMp4 = downloadName.toLowerCase().endsWith(".mp4");
+    const mime = isMp4 ? "video/mp4" : "image/png";
+    await shareFileOrLink(downloadUrl, downloadName, mime, "Festival Invites");
+  }, [downloadUrl, downloadName]);
 
   return (
     <>
@@ -354,7 +453,7 @@ function BuilderPageInner() {
                 <div className="text-ink-700">If the download didn’t start, use the buttons.</div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => downloadFromUrl(downloadUrl, downloadName)}
@@ -363,14 +462,33 @@ function BuilderPageInner() {
                 <Download className="h-4 w-4" />
                 Download
               </button>
-              <a
-                href={downloadUrl}
-                target="_blank"
-                rel="noopener"
-                className="inline-flex items-center justify-center rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+              <button
+                type="button"
+                onClick={handleShare}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+                title="Share via device share sheet"
               >
-                Open link
-              </a>
+                <Share2 className="h-4 w-4" />
+                Share
+              </button>
+              <button
+                type="button"
+                onClick={() => shareToWhatsApp(downloadUrl!, "Here’s my invite:")}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+                title="Share to WhatsApp"
+              >
+                <Link2 className="h-4 w-4" />
+                WhatsApp
+              </button>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(downloadUrl!)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+                title="Copy link"
+              >
+                <CopyIcon className="h-4 w-4" />
+                Copy link
+              </button>
             </div>
           </div>
         </motion.div>
@@ -391,7 +509,7 @@ function BuilderPageInner() {
             Craft <span className="bg-gradient-to-tr from-amber-500 via-rose-500 to-violet-500 bg-clip-text text-transparent">mind-blowing invites</span> in seconds
           </h1>
           <p className="text-ink-700 mt-2">
-            Pick a template, personalize details, add music — export for WhatsApp.
+            Pick a template, personalize details, add music — export & share on WhatsApp.
           </p>
         </motion.header>
 
@@ -447,37 +565,41 @@ function BuilderPageInner() {
                 {errors.title && <p className="mt-1 text-sm text-rose-600">{errors.title}</p>}
               </div>
 
-              <div>
-                <label className="block text-sm mb-1">{labels.hosts}</label>
-                <input
-                  value={names}
-                  onChange={(e) => setNames(e.target.value)}
-                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2"
-                  placeholder={copy[language].defaults[template]?.names ?? "Hosts"}
-                />
-                {errors.names && <p className="mt-1 text-sm text-rose-600">{errors.names}</p>}
-              </div>
+              {!isWish && (
+                <>
+                  <div>
+                    <label className="block text-sm mb-1">{labels.hosts}</label>
+                    <input
+                      value={names}
+                      onChange={(e) => setNames(e.target.value)}
+                      className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2"
+                      placeholder={copy[language].defaults[template]?.names ?? "Hosts"}
+                    />
+                    {errors.names && <p className="mt-1 text-sm text-rose-600">{errors.names}</p>}
+                  </div>
 
-              <div>
-                <label className="block text-sm mb-1">{labels.dateTime}</label>
-                <input
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2"
-                  placeholder={copy[language].defaults[template]?.date ?? "Date & Time"}
-                />
-                {errors.date && <p className="mt-1 text-sm text-rose-600">{errors.date}</p>}
-              </div>
+                  <div>
+                    <label className="block text-sm mb-1">{labels.dateTime}</label>
+                    <input
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2"
+                      placeholder={copy[language].defaults[template]?.date ?? "Date & Time"}
+                    />
+                    {errors.date && <p className="mt-1 text-sm text-rose-600">{errors.date}</p>}
+                  </div>
 
-              <div className="sm:col-span-2">
-                <label className="block text-sm mb-1">{labels.venue}</label>
-                <input
-                  value={venue}
-                  onChange={(e) => setVenue(e.target.value)}
-                  className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2"
-                  placeholder={copy[language].defaults[template]?.venue ?? "Venue"}
-                />
-              </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm mb-1">{labels.venue}</label>
+                    <input
+                      value={venue}
+                      onChange={(e) => setVenue(e.target.value)}
+                      className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2"
+                      placeholder={copy[language].defaults[template]?.venue ?? "Venue"}
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             {/* 3) Background */}
@@ -575,7 +697,7 @@ function BuilderPageInner() {
                 disabled={exporting}
                 aria-label="Download free with watermark"
                 aria-busy={exportingWhich === "free"}
-                title="SD + watermark"
+                title="SD + robust watermark"
               >
                 {exportingWhich === "free" ? (
                   <>
@@ -622,8 +744,31 @@ function BuilderPageInner() {
                 )}
               </button>
 
+              {/* Share (enabled once we have a file) */}
+              <button
+                type="button"
+                onClick={handleShare}
+                disabled={!hasOutput}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 disabled:opacity-60"
+                title={hasOutput ? "Share your file" : "Export first to share"}
+              >
+                <Share2 className="h-4 w-4" />
+                Share
+              </button>
+
+              <button
+                type="button"
+                onClick={() => (hasOutput ? shareToWhatsApp(downloadUrl!, "Here’s my invite:") : null)}
+                disabled={!hasOutput}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50 disabled:opacity-60"
+                title={hasOutput ? "Share on WhatsApp" : "Export first to share"}
+              >
+                <Link2 className="h-4 w-4" />
+                WhatsApp
+              </button>
+
               <div className="text-sm text-gray-700 space-y-1">
-                <div>Free: SD + visible ribbon</div>
+                <div>Free: SD + robust watermark (anti-crop)</div>
                 <div>HD: No watermark · Sharper · Premium effects</div>
               </div>
             </div>
@@ -645,7 +790,7 @@ function BuilderPageInner() {
             className="rounded-2xl border border-white/50 bg-white/80 backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] p-4"
           >
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-display text-xl">Live Preview</h2>
+              <h2 className="font-display text-xl">{isWish ? "Wish Preview" : "Live Preview"}</h2>
 
               <div className="inline-flex rounded-2xl border border-gray-200 bg-white p-1">
                 <button
@@ -697,6 +842,12 @@ function BuilderPageInner() {
                       musicVolume,
                       tier: paid ? "hd" : "free",
                       watermark: !paid,
+                      // new anti-crop hints (composition may choose to use them)
+                      watermarkStrategy: !paid ? wmStrategy : "ribbon",
+                      wmSeed,
+                      wmText,
+                      wmOpacity,
+                      isWish,
                     }}
                     acknowledgeRemotionLicense
                     style={{ width: "100%", height: 520, background: "transparent" }}
@@ -718,6 +869,11 @@ function BuilderPageInner() {
                       bg: bgForRender,
                       tier: paid ? "hd" : "free",
                       watermark: !paid,
+                      watermarkStrategy: !paid ? wmStrategy : "ribbon",
+                      wmSeed,
+                      wmText,
+                      wmOpacity,
+                      isWish,
                     }}
                     acknowledgeRemotionLicense
                     style={{ width: "100%", height: 520, background: "transparent" }}
@@ -727,7 +883,7 @@ function BuilderPageInner() {
             </div>
 
             <p className="mt-3 text-sm text-gray-700">
-              Free preview shows the ribbon. HD removes it and adds premium effects.
+              Free preview shows an anti-crop watermark. HD removes it and adds premium effects.
             </p>
           </section>
         </div>

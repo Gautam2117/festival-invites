@@ -6,6 +6,8 @@ type Props = {
   venue?: string;
   /** e.g. "from-amber-400 via-orange-400 to-rose-500" */
   accent?: string;
+  /** Marks this as a wish template preview */
+  isWish?: boolean;
 };
 
 export default function SquareInvite({
@@ -14,6 +16,7 @@ export default function SquareInvite({
   date,
   venue,
   accent = "from-amber-400 via-orange-400 to-rose-500",
+  isWish = false,
 }: Props) {
   return (
     <div
@@ -73,7 +76,7 @@ export default function SquareInvite({
         <div className="relative z-10 flex h-full flex-col items-center justify-center px-6 text-center">
           {/* Top badge */}
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/70 px-3 py-1 text-xs font-medium text-ink-700 shadow-sm backdrop-blur">
-            Festival Invite
+            {isWish ? "Wish Preview" : "Festival Invite"}
             <span className="h-1 w-1 rounded-full bg-amber-500" />
             Ready for WhatsApp
           </div>
@@ -93,26 +96,34 @@ export default function SquareInvite({
             </div>
           </div>
 
-          {/* Divider */}
-          <div className="mt-4 h-px w-36 overflow-hidden rounded-full bg-gradient-to-r from-transparent via-ink-300/70 to-transparent" />
-
-          {/* Date / Venue */}
-          <div className="mt-3 space-y-1 text-[0.92rem] text-ink-800">
-            <p className="inline-flex items-center justify-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" className="opacity-75">
-                <path fill="currentColor" d="M7 2v2H5a2 2 0 0 0-2 2v1h18V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2H7Zm14 7H3v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9ZM5 13h6v6H5v-6Z"/>
-              </svg>
-              {date}
-            </p>
-            {venue ? (
-              <p className="inline-flex items-center justify-center gap-2 text-ink-700">
-                <svg width="16" height="16" viewBox="0 0 24 24" className="opacity-75">
-                  <path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5a2.5 2.5 0 1 1 0-5a2.5 2.5 0 0 1 0 5Z"/>
-                </svg>
-                {venue}
-              </p>
-            ) : null}
-          </div>
+          {/* Divider + Date/Venue only if not wish */}
+          {!isWish && (
+            <>
+              <div className="mt-4 h-px w-36 overflow-hidden rounded-full bg-gradient-to-r from-transparent via-ink-300/70 to-transparent" />
+              <div className="mt-3 space-y-1 text-[0.92rem] text-ink-800">
+                <p className="inline-flex items-center justify-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" className="opacity-75">
+                    <path
+                      fill="currentColor"
+                      d="M7 2v2H5a2 2 0 0 0-2 2v1h18V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2H7Zm14 7H3v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9ZM5 13h6v6H5v-6Z"
+                    />
+                  </svg>
+                  {date}
+                </p>
+                {venue ? (
+                  <p className="inline-flex items-center justify-center gap-2 text-ink-700">
+                    <svg width="16" height="16" viewBox="0 0 24 24" className="opacity-75">
+                      <path
+                        fill="currentColor"
+                        d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7Zm0 9.5a2.5 2.5 0 1 1 0-5a2.5 2.5 0 0 1 0 5Z"
+                      />
+                    </svg>
+                    {venue}
+                  </p>
+                ) : null}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

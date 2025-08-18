@@ -1,5 +1,7 @@
+// remotion/ImageCard.tsx
 "use client";
 
+import { JSX } from "react";
 import {
   AbsoluteFill,
   Img,
@@ -14,12 +16,21 @@ import {
 
 type Props = {
   title: string;
-  names: string;
-  date: string;
+  names?: string;
+  date?: string;
   venue?: string;
   bg?: string;
   tier?: "free" | "hd";
   watermark?: boolean;
+
+  /** Anti-crop watermark controls (optional) */
+  watermarkStrategy?: "ribbon" | "tile" | "ribbon+tile";
+  wmSeed?: number;
+  wmText?: string;
+  wmOpacity?: number;
+
+  /** Wish-only templates hide names/date/venue */
+  isWish?: boolean;
 };
 
 const resolve = (src?: string | null) => {
@@ -36,7 +47,7 @@ const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 const Sheen: React.FC<{ x: number; rotate?: number; opacity?: number }> = ({
   x,
   rotate = -16,
-  opacity = 0.2,
+  opacity = 0.16,
 }) => (
   <div
     style={{
@@ -138,6 +149,55 @@ const Bokeh: React.FC<{ count: number; seed: string }> = ({ count, seed }) => {
   );
 };
 
+/** tiled anti-crop watermark overlay */
+const WatermarkTile: React.FC<{
+  text: string;
+  opacity?: number;
+  seed?: number;
+}> = ({ text, opacity = 0.18, seed = 0 }) => {
+  const { width, height } = useVideoConfig();
+
+  const r = (k: number) => random(`wm-still-${seed}-${k}`);
+  const stepX = 260;
+  const stepY = 160;
+  const xOffset = Math.floor(r(1) * stepX);
+  const yOffset = Math.floor(r(2) * stepY * 0.5);
+
+  const cols = Math.ceil((width + stepX * 2) / stepX);
+  const rows = Math.ceil((height + stepY * 2) / stepY);
+
+  const items: JSX.Element[] = [];
+  for (let ry = -1; ry < rows; ry++) {
+    for (let cx = -1; cx < cols; cx++) {
+      const x = cx * stepX + xOffset;
+      const y = ry * stepY + yOffset + (ry % 2 === 0 ? stepY * 0.35 : 0);
+      items.push(
+        <div
+          key={`${cx}-${ry}`}
+          style={{
+            position: "absolute",
+            left: x,
+            top: y,
+            transform: "rotate(-24deg)",
+            fontWeight: 800,
+            letterSpacing: 1,
+            fontSize: 18,
+            color: "rgba(255,255,255,0.95)",
+            opacity,
+            textShadow: "0 1px 2px rgba(0,0,0,0.35)",
+            mixBlendMode: "overlay",
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
+        >
+          {text}
+        </div>
+      );
+    }
+  }
+  return <>{items}</>;
+};
+
 /* ---- Main still composition ------------------------------------------- */
 
 export const ImageCard: React.FC<Props> = ({
@@ -148,12 +208,23 @@ export const ImageCard: React.FC<Props> = ({
   bg,
   tier = "free",
   watermark,
+
+  watermarkStrategy = "ribbon",
+  wmSeed = 0,
+  wmText = "Festival Invites — FREE PREVIEW",
+  wmOpacity = 0.18,
+
+  isWish = false,
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height, durationInFrames } = useVideoConfig();
   const intro = spring({ frame, fps, config: { damping: 200, mass: 0.9 } });
 
-  const showRibbon = tier === "free" || watermark;
+  const mustWatermark = tier === "free" || !!watermark;
+  const showRibbon =
+    mustWatermark && (watermarkStrategy === "ribbon" || watermarkStrategy === "ribbon+tile");
+  const showTile =
+    mustWatermark && (watermarkStrategy === "tile" || watermarkStrategy === "ribbon+tile");
   const bgSrc = resolve(bg);
 
   // rotating conic glow for premium feel
@@ -240,7 +311,7 @@ export const ImageCard: React.FC<Props> = ({
           style={{
             position: "relative",
             borderRadius: 28,
-            padding: "36px 32px 30px",
+            padding: isWish ? "38px 32px 30px" : "36px 32px 30px",
             textAlign: "center",
             background: "rgba(255,255,255,0.94)",
             border: "1px solid rgba(255,255,255,0.75)",
@@ -274,56 +345,64 @@ export const ImageCard: React.FC<Props> = ({
             {title}
           </h1>
 
-          <div
-            style={{
-              marginTop: 14,
-              display: "inline-block",
-              borderRadius: 999,
-              padding: 1,
-              background:
-                "linear-gradient(90deg, rgba(255,211,110,1), rgba(255,95,168,1), rgba(139,108,255,1))",
-            }}
-          >
+          {!isWish && !!names && (
             <div
               style={{
+                marginTop: 14,
+                display: "inline-block",
                 borderRadius: 999,
-                padding: "8px 14px",
-                background: "rgba(255,255,255,0.96)",
-                color: "#111827",
-                fontWeight: 700,
-                fontSize: 20,
+                padding: 1,
+                background:
+                  "linear-gradient(90deg, rgba(255,211,110,1), rgba(255,95,168,1), rgba(139,108,255,1))",
               }}
             >
-              {names}
+              <div
+                style={{
+                  borderRadius: 999,
+                  padding: "8px 14px",
+                  background: "rgba(255,255,255,0.96)",
+                  color: "#111827",
+                  fontWeight: 700,
+                  fontSize: 20,
+                }}
+              >
+                {names}
+              </div>
             </div>
-          </div>
+          )}
 
-          <div
-            style={{
-              marginTop: 12,
-              height: 1,
-              width: 180,
-              marginInline: "auto",
-              background:
-                "linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,0.28), rgba(0,0,0,0))",
-              opacity: 0.6,
-            }}
-          />
-
-          <p
-            style={{
-              fontSize: 18,
-              margin: "10px 0 0",
-              color: "#475569",
-            }}
-          >
-            {date}
-            {venue ? ` · ${venue}` : ""}
-          </p>
+          {!isWish && (date || venue) && (
+            <>
+              <div
+                style={{
+                  marginTop: 12,
+                  height: 1,
+                  width: 180,
+                  marginInline: "auto",
+                  background:
+                    "linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,0.28), rgba(0,0,0,0))",
+                  opacity: 0.6,
+                }}
+              />
+              <p
+                style={{
+                  fontSize: 18,
+                  margin: "10px 0 0",
+                  color: "#475569",
+                }}
+              >
+                {date}
+                {venue ? ` · ${venue}` : ""}
+              </p>
+            </>
+          )}
         </div>
       </div>
 
-      {/* watermark ribbon on FREE */}
+      {/* tiled watermark (FREE / forced watermark) */}
+      {showTile && <WatermarkTile text={wmText} opacity={wmOpacity} seed={wmSeed} />}
+
+      {/* watermark ribbon on FREE (if strategy includes ribbon) */}
       {showRibbon && (
         <div
           style={{

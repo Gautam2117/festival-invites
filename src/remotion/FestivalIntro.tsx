@@ -1,5 +1,7 @@
+// remotion/FestivalIntro.tsx
 "use client";
 
+import { JSX } from "react";
 import {
   AbsoluteFill,
   Img,
@@ -15,18 +17,27 @@ import {
 
 type Props = {
   title: string;
-  names: string;
-  date: string;
+  names?: string;
+  date?: string;
   venue?: string;
   /** background image path under /public or data: URL */
   bg?: string;
   /** music path under /public or data: URL */
   music?: string | null;
   musicVolume?: number; // 0..1
-  /** free tier draws ribbon + shorter anim, hd adds extra effects */
+  /** free tier draws watermark + shorter anim, hd adds extra effects */
   tier?: "free" | "hd";
-  /** keep for API compatibility — we show ribbon iff true OR tier==='free' */
+  /** keep for API compatibility — we show a watermark iff true OR tier==='free' */
   watermark?: boolean;
+
+  /** Anti-crop watermark controls (optional, defaults are safe). */
+  watermarkStrategy?: "ribbon" | "tile" | "ribbon+tile";
+  wmSeed?: number;
+  wmText?: string;
+  wmOpacity?: number;
+
+  /** Wish-only templates hide names/date/venue */
+  isWish?: boolean;
 };
 
 const resolveAsset = (src?: string | null) => {
@@ -146,6 +157,56 @@ const Bokeh: React.FC<{ count: number; seed: string }> = ({ count, seed }) => {
   );
 };
 
+/** tiled anti-crop watermark overlay */
+const WatermarkTile: React.FC<{
+  text: string;
+  opacity?: number;
+  seed?: number;
+}> = ({ text, opacity = 0.18, seed = 0 }) => {
+  const { width, height } = useVideoConfig();
+
+  // Staggered grid with deterministic offset
+  const r = (k: number) => random(`wm-${seed}-${k}`);
+  const stepX = 260;
+  const stepY = 160;
+  const xOffset = Math.floor(r(1) * stepX);
+  const yOffset = Math.floor(r(2) * stepY * 0.5);
+
+  const cols = Math.ceil((width + stepX * 2) / stepX);
+  const rows = Math.ceil((height + stepY * 2) / stepY);
+
+  const items: JSX.Element[] = [];
+  for (let ry = -1; ry < rows; ry++) {
+    for (let cx = -1; cx < cols; cx++) {
+      const x = cx * stepX + xOffset;
+      const y = ry * stepY + yOffset + (ry % 2 === 0 ? stepY * 0.35 : 0);
+      items.push(
+        <div
+          key={`${cx}-${ry}`}
+          style={{
+            position: "absolute",
+            left: x,
+            top: y,
+            transform: "rotate(-24deg)",
+            fontWeight: 800,
+            letterSpacing: 1,
+            fontSize: 18,
+            color: "rgba(255,255,255,0.95)",
+            opacity,
+            textShadow: "0 1px 2px rgba(0,0,0,0.35)",
+            mixBlendMode: "overlay",
+            pointerEvents: "none",
+            userSelect: "none",
+          }}
+        >
+          {text}
+        </div>
+      );
+    }
+  }
+  return <>{items}</>;
+};
+
 /** paid-only confetti burst */
 const ConfettiBurst: React.FC<{ at: number; seed: string }> = ({ at, seed }) => {
   const frame = useCurrentFrame();
@@ -203,6 +264,13 @@ export const FestivalIntro: React.FC<Props> = (p) => {
     musicVolume = 0.85,
     tier = "free",
     watermark = false,
+
+    watermarkStrategy = "ribbon",
+    wmSeed = 0,
+    wmText = "Festival Invites — FREE PREVIEW",
+    wmOpacity = 0.18,
+
+    isWish = false,
   } = p;
 
   const frame = useCurrentFrame();
@@ -234,7 +302,11 @@ export const FestivalIntro: React.FC<Props> = (p) => {
 
   // Free vs HD differences
   const isFree = tier === "free";
-  const showRibbon = isFree || watermark;
+  const mustWatermark = isFree || watermark;
+  const showRibbon =
+    mustWatermark && (watermarkStrategy === "ribbon" || watermarkStrategy === "ribbon+tile");
+  const showTile =
+    mustWatermark && (watermarkStrategy === "tile" || watermarkStrategy === "ribbon+tile");
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#060606", overflow: "hidden" }}>
@@ -299,7 +371,7 @@ export const FestivalIntro: React.FC<Props> = (p) => {
           style={{
             position: "relative",
             borderRadius: 26,
-            padding: "28px 28px 22px",
+            padding: isWish ? "34px 28px 28px" : "28px 28px 22px",
             textAlign: "center",
             background: "rgba(255,255,255,0.92)",
             border: "1px solid rgba(255,255,255,0.7)",
@@ -339,55 +411,60 @@ export const FestivalIntro: React.FC<Props> = (p) => {
             {title}
           </h1>
 
-          <div
-            style={{
-              marginTop: 12,
-              display: "inline-block",
-              borderRadius: 999,
-              padding: 1,
-              background:
-                "linear-gradient(90deg, rgba(255,211,110,1), rgba(255,95,168,1), rgba(139,108,255,1))",
-              transform: `translateY(${(1 - intro2) * 12}px)`,
-              opacity: intro2,
-            }}
-          >
+          {!isWish && !!names && (
             <div
               style={{
+                marginTop: 12,
+                display: "inline-block",
                 borderRadius: 999,
-                padding: "6px 12px",
-                background: "rgba(255,255,255,0.92)",
-                color: "#222",
-                fontWeight: 600,
+                padding: 1,
+                background:
+                  "linear-gradient(90deg, rgba(255,211,110,1), rgba(255,95,168,1), rgba(139,108,255,1))",
+                transform: `translateY(${(1 - intro2) * 12}px)`,
+                opacity: intro2,
               }}
             >
-              {names}
+              <div
+                style={{
+                  borderRadius: 999,
+                  padding: "6px 12px",
+                  background: "rgba(255,255,255,0.92)",
+                  color: "#222",
+                  fontWeight: 600,
+                }}
+              >
+                {names}
+              </div>
             </div>
-          </div>
+          )}
 
-          <div
-            style={{
-              marginTop: 12,
-              height: 1,
-              width: 160,
-              marginInline: "auto",
-              background:
-                "linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,0.25), rgba(0,0,0,0))",
-              opacity: 0.6,
-            }}
-          />
-
-          <p
-            style={{
-              margin: "10px 0 0",
-              fontSize: 18,
-              color: "#3f3f46",
-              transform: `translateY(${(1 - intro3) * 12}px)`,
-              opacity: intro3,
-            }}
-          >
-            {date}
-            {venue ? ` · ${venue}` : ""}
-          </p>
+          {!isWish && (date || venue) && (
+            <>
+              <div
+                style={{
+                  marginTop: 12,
+                  height: 1,
+                  width: 160,
+                  marginInline: "auto",
+                  background:
+                    "linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,0.25), rgba(0,0,0,0))",
+                  opacity: 0.6,
+                }}
+              />
+              <p
+                style={{
+                  margin: "10px 0 0",
+                  fontSize: 18,
+                  color: "#3f3f46",
+                  transform: `translateY(${(1 - intro3) * 12}px)`,
+                  opacity: intro3,
+                }}
+              >
+                {date}
+                {venue ? ` · ${venue}` : ""}
+              </p>
+            </>
+          )}
         </div>
       </div>
 
@@ -399,7 +476,10 @@ export const FestivalIntro: React.FC<Props> = (p) => {
         </>
       )}
 
-      {/* Bottom ribbon watermark – always visible on FREE */}
+      {/* Tiled anti-crop watermark (FREE / forced watermark) */}
+      {showTile && <WatermarkTile text={wmText} opacity={wmOpacity} seed={wmSeed} />}
+
+      {/* Bottom ribbon watermark – visible on FREE if strategy includes ribbon */}
       {showRibbon && (
         <div
           style={{
@@ -436,7 +516,7 @@ export const FestivalIntro: React.FC<Props> = (p) => {
         </div>
       )}
 
-      {/* Music – FIX: use callback to avoid Remotion volume warning */}
+      {/* Music – use callback to avoid Remotion volume warning */}
       {musicSrc && (
         <Audio
           src={musicSrc}
