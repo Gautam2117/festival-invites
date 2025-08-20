@@ -291,87 +291,60 @@ export const ImageCard: React.FC<Props> = ({
         }}
       />
 
-      {/* golden frame wrapper – now just a thin luxe border */}
+      /* ------------------------------------------------------------------ */
+      /*  ⚡ Minimal luxe overlay – title-first, no big box                 */
+      /* ------------------------------------------------------------------ */
+
       <div
+        /* parent wrapper purely for a thin gradient stroke */
         style={{
           position: "absolute",
           left: "50%",
-          top: "50%",
-          transform: `translate(-50%,-50%) scale(${0.96 + intro * 0.04})`,
-          width: Math.min(860, width * 0.9),
-          borderRadius: 30,
-          padding: 2,                         // gradient stroke thickness
+          bottom: "14%",                 // sit in lower third
+          transform: `translateX(-50%) scale(${0.94 + intro * 0.06})`,
+          padding: 2,
+          borderRadius: 28,
           background:
-            "linear-gradient(135deg,#FFD36E 0%,#FF9A5A 20%,#FF5FA8 55%,#8B6CFF 85%,#FFD36E 100%)",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.35)",
-          overflow: "hidden",
+            "linear-gradient(135deg,#FFD36E 0%,#FF9A5A 18%,#FF67B0 50%,#8B6CFF 82%,#FFD36E 100%)",
+          boxShadow: "0 16px 60px rgba(0,0,0,0.35)",
         }}
       >
-        {/* subtle inner wash to soften the border */}
+        {/* frosted-glass overlay – the only visible “box” now */}
         <div
           style={{
-            position: "absolute",
-            inset: 0,
-            borderRadius: 28,
-            background: "rgba(255,255,255,0.06)",
-            mixBlendMode: "overlay",
-            pointerEvents: "none",
-          }}
-        />
-
-        {/* quick sheen across the frame */}
-        <Sheen x={sheenX} opacity={0.14} />
-
-        {/* ------------------------------------------------------------------ */}
-        {/*  ⬇️  NEW premium overlay (title-first, frosted glass)  ⬇️          */}
-        {/* ------------------------------------------------------------------ */}
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            bottom: "12%",
-            transform: "translateX(-50%)",
-            width: "min(88%, 720px)",
+            borderRadius: 26,
+            padding: isWish ? "24px 26px 20px" : "24px 26px 22px",
+            background: "rgba(0,0,0,0.32)",
+            WebkitBackdropFilter: "blur(8px) saturate(1.25)",
+            backdropFilter: "blur(8px) saturate(1.25)",
+            border: "1px solid rgba(255,255,255,0.25)",
             textAlign: "center",
             color: "#fff",
             pointerEvents: "none",
-            opacity: intro,               // spring entrance
+            opacity: intro,               // nice spring entrance
           }}
         >
-          {/* Title with glow + gradient stroke */}
-          <div
+          {/* ===== Title ===== */}
+          <h1
             style={{
-              display: "inline-block",
-              padding: "8px 14px",
-              borderRadius: 16,
+              margin: 0,
+              fontSize: 42,
+              lineHeight: 1.1,
+              letterSpacing: 0.25,
+              fontWeight: 800,
+              textShadow: "0 2px 18px rgba(0,0,0,0.45)",
               background:
-                "linear-gradient(to right,rgba(0,0,0,0.38),rgba(0,0,0,0.18))",
-              backdropFilter: "blur(6px) saturate(1.15)",
-              WebkitBackdropFilter: "blur(6px) saturate(1.15)",
-              border: "1px solid rgba(255,255,255,0.25)",
-              boxShadow: "0 8px 26px rgba(0,0,0,0.35)",
+                "linear-gradient(135deg,#ffffff 0%,#ffe8c6 45%,#ffd6ff 80%)",
+              WebkitBackgroundClip: "text",
+              backgroundClip: "text",
+              color: "transparent",
             }}
           >
-            <h1
-              style={{
-                margin: 0,
-                fontSize: 42,
-                lineHeight: 1.1,
-                letterSpacing: 0.25,
-                textShadow: "0 2px 18px rgba(0,0,0,0.45)",
-                background:
-                  "linear-gradient(135deg,#ffffff 0%,#ffe8c6 45%,#ffd6ff 80%)",
-                WebkitBackgroundClip: "text",
-                backgroundClip: "text",
-                color: "transparent",
-              }}
-            >
-              {title}
-            </h1>
-          </div>
+            {title}
+          </h1>
 
-          {/* Names + date/venue pill (hidden for wish templates) */}
-          {!isWish && !!names && (
+          {/* ===== Names + details (skipped for wishes) ===== */}
+          {!isWish && (
             <div
               style={{
                 marginTop: 14,
@@ -381,10 +354,8 @@ export const ImageCard: React.FC<Props> = ({
                 padding: "6px 14px",
                 borderRadius: 999,
                 background:
-                  "linear-gradient(to right,rgba(0,0,0,0.32),rgba(0,0,0,0.15))",
-                border: "1px solid rgba(255,255,255,0.20)",
-                backdropFilter: "blur(6px)",
-                WebkitBackdropFilter: "blur(6px)",
+                  "linear-gradient(to right,rgba(255,255,255,0.18),rgba(255,255,255,0.08))",
+                border: "1px solid rgba(255,255,255,0.22)",
                 fontWeight: 600,
                 fontSize: 18,
               }}

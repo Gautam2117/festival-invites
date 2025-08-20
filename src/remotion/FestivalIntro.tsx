@@ -352,142 +352,92 @@ export const FestivalIntro: React.FC<Props> = (p) => {
       />
 
       /* ------------------------------------------------------------------ */
-      /*  Aurora-glass invite card – prettier, lighter, more modern ✨       */
+      /*  ⚡ Minimal luxe overlay – title-first, no big box                 */
       /* ------------------------------------------------------------------ */
 
-      {/* Aurora frame with animated sweep */}
       <div
+        /* parent wrapper purely for a thin gradient stroke */
         style={{
           position: "absolute",
           left: "50%",
-          top: "46%",
-          transform: `translate(-50%, -50%) scale(${0.94 + intro * 0.06})`,
-          width: Math.min(720, width * 0.9),
-          borderRadius: 34,
-          padding: 3,
+          bottom: "14%",                 // sit in lower third
+          transform: `translateX(-50%) scale(${0.94 + intro * 0.06})`,
+          padding: 2,
+          borderRadius: 28,
           background:
-            "linear-gradient(135deg,#FFD36E 0%,#FF9A5A 18%,#FF67B0 46%,#8B6CFF 78%,#FFD36E 100%)",
-          boxShadow: "0 28px 90px rgba(0,0,0,0.38)",
-          overflow: "hidden",
+            "linear-gradient(135deg,#FFD36E 0%,#FF9A5A 18%,#FF67B0 50%,#8B6CFF 82%,#FFD36E 100%)",
+          boxShadow: "0 16px 60px rgba(0,0,0,0.35)",
         }}
       >
-        {/* moving aurora sweep inside the stroke */}
+        {/* frosted-glass overlay – the only visible “box” now */}
         <div
           style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "repeating-linear-gradient( 60deg, rgba(255,255,255,0.15) 0 2px, transparent 2px 8px )",
-            opacity: 0.35,
-            transform: `translateX(${(frame % (fps * 8)) / (fps * 8) * -100}%)`,
-          }}
-        />
-
-        {/* Frosted-glass inner card */}
-        <div
-          style={{
-            position: "relative",
-            borderRadius: 30,
-            padding: isWish ? "40px 34px 34px" : "34px 34px 28px",
-            background: "rgba(255,255,255,0.90)",
-            WebkitBackdropFilter: "blur(10px) saturate(1.35)",
-            backdropFilter: "blur(10px) saturate(1.35)",
-            border: "1px solid rgba(255,255,255,0.6)",
-            overflow: "hidden",
+            borderRadius: 26,
+            padding: isWish ? "24px 26px 20px" : "24px 26px 22px",
+            background: "rgba(0,0,0,0.32)",
+            WebkitBackdropFilter: "blur(8px) saturate(1.25)",
+            backdropFilter: "blur(8px) saturate(1.25)",
+            border: "1px solid rgba(255,255,255,0.25)",
             textAlign: "center",
+            color: "#fff",
+            pointerEvents: "none",
+            opacity: intro,               // nice spring entrance
           }}
         >
-          {/* faint radial glow */}
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background:
-                "radial-gradient(circle at 30% 0%, rgba(255,215,155,0.32) 0%, transparent 60%)",
-              pointerEvents: "none",
-            }}
-          />
-
-          {/* shimmering diagonal sheen */}
-          <Sheen x={shimmerX} opacity={0.14} />
-
-          {/* ----- Content ----- */}
-
-          {/* Title with gold-pink gradient text */}
+          {/* ===== Title ===== */}
           <h1
             style={{
               margin: 0,
-              fontSize: 48,
-              lineHeight: 1.05,
-              letterSpacing: 0.3,
+              fontSize: 42,
+              lineHeight: 1.1,
+              letterSpacing: 0.25,
               fontWeight: 800,
+              textShadow: "0 2px 18px rgba(0,0,0,0.45)",
               background:
-                "linear-gradient(135deg,#e29500 0%,#ff586e 50%,#925bff 100%)",
+                "linear-gradient(135deg,#ffffff 0%,#ffe8c6 45%,#ffd6ff 80%)",
               WebkitBackgroundClip: "text",
+              backgroundClip: "text",
               color: "transparent",
-              textShadow: "0 2px 6px rgba(255,255,255,0.5)",
-              transform: `translateY(${(1 - intro) * 14}px)`,
-              opacity: intro,
             }}
           >
             {title}
           </h1>
 
-          {/* Host / Names pill */}
-          {!isWish && !!names && (
+          {/* ===== Names + details (skipped for wishes) ===== */}
+          {!isWish && (
             <div
               style={{
-                marginTop: 16,
-                display: "inline-block",
+                marginTop: 14,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 14px",
                 borderRadius: 999,
-                padding: 2,
                 background:
-                  "linear-gradient(90deg,rgba(255,211,110,1),rgba(255,95,168,1),rgba(139,108,255,1))",
-                transform: `translateY(${(1 - intro2) * 14}px)`,
-                opacity: intro2,
+                  "linear-gradient(to right,rgba(255,255,255,0.18),rgba(255,255,255,0.08))",
+                border: "1px solid rgba(255,255,255,0.22)",
+                fontWeight: 600,
+                fontSize: 18,
               }}
             >
-              <div
-                style={{
-                  borderRadius: 999,
-                  padding: "8px 16px",
-                  background: "rgba(255,255,255,0.88)",
-                  fontWeight: 700,
-                  color: "#222",
-                  fontSize: 17,
-                }}
-              >
-                {names}
-              </div>
+              <span>{names}</span>
+              {(date || venue) && (
+                <>
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 999,
+                      background: "rgba(255,255,255,0.7)",
+                    }}
+                  />
+                  <span style={{ opacity: 0.9 }}>
+                    {date}
+                    {venue ? ` · ${venue}` : ""}
+                  </span>
+                </>
+              )}
             </div>
-          )}
-
-          {/* Divider + date / venue */}
-          {!isWish && (date || venue) && (
-            <>
-              <div
-                style={{
-                  margin: "18px auto 0",
-                  height: 1,
-                  width: 180,
-                  background:
-                    "linear-gradient(90deg,transparent,rgba(0,0,0,0.3),transparent)",
-                }}
-              />
-              <p
-                style={{
-                  margin: "12px 0 0",
-                  fontSize: 19,
-                  fontWeight: 500,
-                  color: "#51525c",
-                  transform: `translateY(${(1 - intro3) * 14}px)`,
-                  opacity: intro3,
-                }}
-              >
-                {date}
-                {venue ? ` · ${venue}` : ""}
-              </p>
-            </>
           )}
         </div>
       </div>
