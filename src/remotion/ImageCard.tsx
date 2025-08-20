@@ -291,7 +291,7 @@ export const ImageCard: React.FC<Props> = ({
         }}
       />
 
-      {/* golden frame wrapper */}
+      {/* golden frame wrapper – now just a thin luxe border */}
       <div
         style={{
           position: "absolute",
@@ -300,101 +300,113 @@ export const ImageCard: React.FC<Props> = ({
           transform: `translate(-50%,-50%) scale(${0.96 + intro * 0.04})`,
           width: Math.min(860, width * 0.9),
           borderRadius: 30,
-          padding: 2,
+          padding: 2,                         // gradient stroke thickness
           background:
-            "linear-gradient(135deg, #FFD36E 0%, #FF9A5A 20%, #FF5FA8 55%, #8B6CFF 85%, #FFD36E 100%)",
+            "linear-gradient(135deg,#FFD36E 0%,#FF9A5A 20%,#FF5FA8 55%,#8B6CFF 85%,#FFD36E 100%)",
           boxShadow: "0 24px 80px rgba(0,0,0,0.35)",
+          overflow: "hidden",
         }}
       >
-        {/* inner card */}
+        {/* subtle inner wash to soften the border */}
         <div
           style={{
-            position: "relative",
+            position: "absolute",
+            inset: 0,
             borderRadius: 28,
-            padding: isWish ? "38px 32px 30px" : "36px 32px 30px",
+            background: "rgba(255,255,255,0.06)",
+            mixBlendMode: "overlay",
+            pointerEvents: "none",
+          }}
+        />
+
+        {/* quick sheen across the frame */}
+        <Sheen x={sheenX} opacity={0.14} />
+
+        {/* ------------------------------------------------------------------ */}
+        {/*  ⬇️  NEW premium overlay (title-first, frosted glass)  ⬇️          */}
+        {/* ------------------------------------------------------------------ */}
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: "12%",
+            transform: "translateX(-50%)",
+            width: "min(88%, 720px)",
             textAlign: "center",
-            background: "rgba(255,255,255,0.94)",
-            border: "1px solid rgba(255,255,255,0.75)",
-            boxShadow: "0 12px 50px rgba(0,0,0,0.22)",
-            overflow: "hidden",
+            color: "#fff",
+            pointerEvents: "none",
+            opacity: intro,               // spring entrance
           }}
         >
-          {/* gentle wash */}
+          {/* Title with glow + gradient stroke */}
           <div
             style={{
-              position: "absolute",
-              inset: 0,
+              display: "inline-block",
+              padding: "8px 14px",
+              borderRadius: 16,
               background:
-                "radial-gradient(ellipse at 28% 0%, rgba(255,210,140,0.26), rgba(255,255,255,0) 65%)",
-              pointerEvents: "none",
-            }}
-          />
-          {/* sheen sweep */}
-          <Sheen x={sheenX} opacity={0.16} />
-
-          <h1
-            style={{
-              fontSize: 52,
-              margin: 0,
-              color: "#0f172a",
-              lineHeight: 1.06,
-              letterSpacing: 0.2,
-              textShadow: "0 1px 0 rgba(255,255,255,0.6)",
+                "linear-gradient(to right,rgba(0,0,0,0.38),rgba(0,0,0,0.18))",
+              backdropFilter: "blur(6px) saturate(1.15)",
+              WebkitBackdropFilter: "blur(6px) saturate(1.15)",
+              border: "1px solid rgba(255,255,255,0.25)",
+              boxShadow: "0 8px 26px rgba(0,0,0,0.35)",
             }}
           >
-            {title}
-          </h1>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: 42,
+                lineHeight: 1.1,
+                letterSpacing: 0.25,
+                textShadow: "0 2px 18px rgba(0,0,0,0.45)",
+                background:
+                  "linear-gradient(135deg,#ffffff 0%,#ffe8c6 45%,#ffd6ff 80%)",
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                color: "transparent",
+              }}
+            >
+              {title}
+            </h1>
+          </div>
 
+          {/* Names + date/venue pill (hidden for wish templates) */}
           {!isWish && !!names && (
             <div
               style={{
                 marginTop: 14,
-                display: "inline-block",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 14px",
                 borderRadius: 999,
-                padding: 1,
                 background:
-                  "linear-gradient(90deg, rgba(255,211,110,1), rgba(255,95,168,1), rgba(139,108,255,1))",
+                  "linear-gradient(to right,rgba(0,0,0,0.32),rgba(0,0,0,0.15))",
+                border: "1px solid rgba(255,255,255,0.20)",
+                backdropFilter: "blur(6px)",
+                WebkitBackdropFilter: "blur(6px)",
+                fontWeight: 600,
+                fontSize: 18,
               }}
             >
-              <div
-                style={{
-                  borderRadius: 999,
-                  padding: "8px 14px",
-                  background: "rgba(255,255,255,0.96)",
-                  color: "#111827",
-                  fontWeight: 700,
-                  fontSize: 20,
-                }}
-              >
-                {names}
-              </div>
+              <span>{names}</span>
+              {(date || venue) && (
+                <>
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: 999,
+                      background: "rgba(255,255,255,0.7)",
+                    }}
+                  />
+                  <span style={{ opacity: 0.9 }}>
+                    {date}
+                    {venue ? ` · ${venue}` : ""}
+                  </span>
+                </>
+              )}
             </div>
-          )}
-
-          {!isWish && (date || venue) && (
-            <>
-              <div
-                style={{
-                  marginTop: 12,
-                  height: 1,
-                  width: 180,
-                  marginInline: "auto",
-                  background:
-                    "linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,0.28), rgba(0,0,0,0))",
-                  opacity: 0.6,
-                }}
-              />
-              <p
-                style={{
-                  fontSize: 18,
-                  margin: "10px 0 0",
-                  color: "#475569",
-                }}
-              >
-                {date}
-                {venue ? ` · ${venue}` : ""}
-              </p>
-            </>
           )}
         </div>
       </div>

@@ -1,5 +1,14 @@
-export const bgForTemplate = (slug: string) =>
-  `assets/backgrounds/${slug}.jpg`;
+export const bgForTemplate = (slug: string) => {
+  // TEMP fallback while you’re still adding JPEGs
+  const maybe = `/assets/backgrounds/${slug}.jpg`;
+  // quick client-side existence test (only runs once per slug)
+  if (typeof document !== "undefined") {
+    const img = new Image();
+    img.src = maybe;
+    if (img.width === 0) return null;   // let comp show gradient
+  }
+  return maybe;
+};
 
 // Template → default music (file + nice label + default volume)
 export const defaultMusicByTemplate: Record<

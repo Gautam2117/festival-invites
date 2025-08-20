@@ -39,6 +39,7 @@ import {
   curatedTracks,
   curatedMap,
 } from "@/lib/media-presets";
+import {usePreloadImage, usePreloadAudio} from "@/lib/use-asset-preload";
 
 /** Wish-only slugs: no names/date/venue needed */
 const WISH_SLUGS = new Set([
@@ -176,7 +177,7 @@ function BuilderPageInner() {
   // Background
   const [customBgDataUrl, setCustomBgDataUrl] = useState<string | null>(null);
   const defaultBgPath = bgForTemplate(template);
-  const bgForRender = customBgDataUrl ?? defaultBgPath;
+  const bgCandidate   = customBgDataUrl ?? defaultBgPath;
 
   // Music
   const autoPreset = defaultMusicByTemplate[template] ?? { file: "", label: "", volume: 0.8 };
@@ -185,8 +186,19 @@ function BuilderPageInner() {
   const [musicVolume, setMusicVolume] = useState<number>(autoPreset.volume);
 
   const musicFromCurated = curatedMap[trackId] || "";
-  const musicForRender =
+  const musicCandidate =
     customMusic ?? (trackId === "auto" ? autoPreset.file : trackId === "none" ? null : musicFromCurated);
+
+  /*  🔥 1-line preload */
+  const {readyUrl: bgReadyUrl,    status: bgStatus}    = usePreloadImage(bgCandidate);
+  const {readyUrl: musicReadyUrl, status: musicStatus} = usePreloadAudio(musicCandidate);
+  /*  Pass only when decoded */
+  const bgForPlayer:    string | undefined = bgReadyUrl ?? undefined;
+  const musicForPlayer: string | undefined = musicReadyUrl ?? undefined;
+
+  /*  Force-remount Player when these change (kills stale frames)  */
+  const playerKey =
+   `${mode}-${template}-${bgForPlayer ?? "noBg"}-${musicForPlayer ?? "noMusic"}-${paid?"hd":"free"}`;
 
   const isVideo = mode === "video";
   const isWish = WISH_SLUGS.has(template);
@@ -269,8 +281,8 @@ function BuilderPageInner() {
           names,
           date,
           venue,
-          bg: bgForRender,
-          music: musicForRender,
+          bg: bgForPlayer,
+          music: musicForPlayer,
           musicVolume,
           tier: quality === "free" ? "free" : "hd",
           // stronger watermark signals for FREE renders (backward compatible)
@@ -403,6 +415,26 @@ function BuilderPageInner() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template, language, customMusic]);
+
+  /* ------------------------------------------------------------------ */
+  /*  🚀  NEW: Prefetch background for instant swaps                    */
+  /* ------------------------------------------------------------------ */
+  useEffect(() => {
+    const bg = customBgDataUrl ?? bgForTemplate(template);
+    if (!bg || bg.startsWith("data:")) return;          // skip custom data URLs
+
+    const link = document.createElement("link");
+    link.rel = "prefetch";
+    link.as = "image";
+    link.href = bg.startsWith("/") ? bg : `/${bg}`;     // ensure absolute path
+    document.head.appendChild(link);
+
+    return () => {
+      // clean-up so we don’t leak <link> tags when switching many times
+      document.head.removeChild(link);
+    };
+  }, [template, customBgDataUrl]);                      // ← dependencies
+  /* ------------------------------------------------------------------ */
 
   useEffect(() => {
     const schema = schemaFor(template);
@@ -825,6 +857,7 @@ function BuilderPageInner() {
               <div className="relative">
                 {isVideo ? (
                   <Player
+                    key={playerKey}
                     component={FestivalIntro}
                     autoPlay
                     loop
@@ -837,8 +870,8 @@ function BuilderPageInner() {
                       names,
                       date,
                       venue,
-                      bg: bgForRender,
-                      music: musicForRender,
+                      bg: bgForPlayer,
+                      music: musicForPlayer,
                       musicVolume,
                       tier: paid ? "hd" : "free",
                       watermark: !paid,
@@ -854,6 +887,7 @@ function BuilderPageInner() {
                   />
                 ) : (
                   <Player
+                    key={playerKey}
                     component={ImageCard}
                     autoPlay
                     loop
@@ -866,7 +900,7 @@ function BuilderPageInner() {
                       names,
                       date,
                       venue,
-                      bg: bgForRender,
+                      bg: bgForPlayer,
                       tier: paid ? "hd" : "free",
                       watermark: !paid,
                       watermarkStrategy: !paid ? wmStrategy : "ribbon",
@@ -885,6 +919,12 @@ function BuilderPageInner() {
             <p className="mt-3 text-sm text-gray-700">
               Free preview shows an anti-crop watermark. HD removes it and adds premium effects.
             </p>
+            {/* tiny badge while swapping assets */}
+            {(bgStatus==="loading" || musicStatus==="loading") && (
+              <span className="absolute right-3 top-3 rounded-full bg-black/60 text-white px-2 py-0.5 text-xs">
+                Updating preview…
+              </span>
+            )}  
           </section>
         </div>
       </main>

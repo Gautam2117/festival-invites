@@ -351,86 +351,110 @@ export const FestivalIntro: React.FC<Props> = (p) => {
         }}
       />
 
-      {/* Golden gradient frame */}
+      /* ------------------------------------------------------------------ */
+      /*  Aurora-glass invite card – prettier, lighter, more modern ✨       */
+      /* ------------------------------------------------------------------ */
+
+      {/* Aurora frame with animated sweep */}
       <div
         style={{
           position: "absolute",
           left: "50%",
-          top: "44%",
-          transform: `translate(-50%, -50%) scale(${0.96 + intro * 0.04})`,
-          width: Math.min(700, width * 0.9),
-          borderRadius: 28,
-          padding: 2, // gradient stroke thickness
+          top: "46%",
+          transform: `translate(-50%, -50%) scale(${0.94 + intro * 0.06})`,
+          width: Math.min(720, width * 0.9),
+          borderRadius: 34,
+          padding: 3,
           background:
-            "linear-gradient(135deg, #FFD36E 0%, #FF9A5A 20%, #FF5FA8 55%, #8B6CFF 85%, #FFD36E 100%)",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.35)",
+            "linear-gradient(135deg,#FFD36E 0%,#FF9A5A 18%,#FF67B0 46%,#8B6CFF 78%,#FFD36E 100%)",
+          boxShadow: "0 28px 90px rgba(0,0,0,0.38)",
+          overflow: "hidden",
         }}
       >
-        {/* Inner card */}
+        {/* moving aurora sweep inside the stroke */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "repeating-linear-gradient( 60deg, rgba(255,255,255,0.15) 0 2px, transparent 2px 8px )",
+            opacity: 0.35,
+            transform: `translateX(${(frame % (fps * 8)) / (fps * 8) * -100}%)`,
+          }}
+        />
+
+        {/* Frosted-glass inner card */}
         <div
           style={{
             position: "relative",
-            borderRadius: 26,
-            padding: isWish ? "34px 28px 28px" : "28px 28px 22px",
-            textAlign: "center",
-            background: "rgba(255,255,255,0.92)",
-            border: "1px solid rgba(255,255,255,0.7)",
-            backdropFilter: "blur(2px)",
+            borderRadius: 30,
+            padding: isWish ? "40px 34px 34px" : "34px 34px 28px",
+            background: "rgba(255,255,255,0.90)",
+            WebkitBackdropFilter: "blur(10px) saturate(1.35)",
+            backdropFilter: "blur(10px) saturate(1.35)",
+            border: "1px solid rgba(255,255,255,0.6)",
             overflow: "hidden",
+            textAlign: "center",
           }}
         >
-          {/* light gradient wash */}
+          {/* faint radial glow */}
           <div
             style={{
               position: "absolute",
               inset: 0,
               background:
-                "radial-gradient(ellipse at 30% 0%, rgba(255,210,140,0.26), rgba(255,255,255,0) 65%)",
+                "radial-gradient(circle at 30% 0%, rgba(255,215,155,0.32) 0%, transparent 60%)",
               pointerEvents: "none",
             }}
           />
 
-          {/* moving sheen across card */}
-          <Sheen x={shimmerX} opacity={0.18} />
+          {/* shimmering diagonal sheen */}
+          <Sheen x={shimmerX} opacity={0.14} />
 
-          {/* content */}
+          {/* ----- Content ----- */}
+
+          {/* Title with gold-pink gradient text */}
           <h1
             style={{
               margin: 0,
-              fontSize: 46,
-              lineHeight: 1.08,
-              color: "#101010",
-              letterSpacing: 0.2,
-              transform: `translateY(${(1 - intro) * 12}px)`,
+              fontSize: 48,
+              lineHeight: 1.05,
+              letterSpacing: 0.3,
+              fontWeight: 800,
+              background:
+                "linear-gradient(135deg,#e29500 0%,#ff586e 50%,#925bff 100%)",
+              WebkitBackgroundClip: "text",
+              color: "transparent",
+              textShadow: "0 2px 6px rgba(255,255,255,0.5)",
+              transform: `translateY(${(1 - intro) * 14}px)`,
               opacity: intro,
-              position: "relative",
-              overflow: "hidden",
-              textShadow: "0 1px 0 rgba(255,255,255,0.6)",
             }}
           >
             {title}
           </h1>
 
+          {/* Host / Names pill */}
           {!isWish && !!names && (
             <div
               style={{
-                marginTop: 12,
+                marginTop: 16,
                 display: "inline-block",
                 borderRadius: 999,
-                padding: 1,
+                padding: 2,
                 background:
-                  "linear-gradient(90deg, rgba(255,211,110,1), rgba(255,95,168,1), rgba(139,108,255,1))",
-                transform: `translateY(${(1 - intro2) * 12}px)`,
+                  "linear-gradient(90deg,rgba(255,211,110,1),rgba(255,95,168,1),rgba(139,108,255,1))",
+                transform: `translateY(${(1 - intro2) * 14}px)`,
                 opacity: intro2,
               }}
             >
               <div
                 style={{
                   borderRadius: 999,
-                  padding: "6px 12px",
-                  background: "rgba(255,255,255,0.92)",
+                  padding: "8px 16px",
+                  background: "rgba(255,255,255,0.88)",
+                  fontWeight: 700,
                   color: "#222",
-                  fontWeight: 600,
+                  fontSize: 17,
                 }}
               >
                 {names}
@@ -438,25 +462,25 @@ export const FestivalIntro: React.FC<Props> = (p) => {
             </div>
           )}
 
+          {/* Divider + date / venue */}
           {!isWish && (date || venue) && (
             <>
               <div
                 style={{
-                  marginTop: 12,
+                  margin: "18px auto 0",
                   height: 1,
-                  width: 160,
-                  marginInline: "auto",
+                  width: 180,
                   background:
-                    "linear-gradient(90deg, rgba(0,0,0,0), rgba(0,0,0,0.25), rgba(0,0,0,0))",
-                  opacity: 0.6,
+                    "linear-gradient(90deg,transparent,rgba(0,0,0,0.3),transparent)",
                 }}
               />
               <p
                 style={{
-                  margin: "10px 0 0",
-                  fontSize: 18,
-                  color: "#3f3f46",
-                  transform: `translateY(${(1 - intro3) * 12}px)`,
+                  margin: "12px 0 0",
+                  fontSize: 19,
+                  fontWeight: 500,
+                  color: "#51525c",
+                  transform: `translateY(${(1 - intro3) * 14}px)`,
                   opacity: intro3,
                 }}
               >
