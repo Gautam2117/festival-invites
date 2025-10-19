@@ -2,40 +2,17 @@
 import Image from "next/image";
 import type { Metadata } from "next";
 import type { Invite } from "@/types/invite";
-import dynamic from "next/dynamic";
 import ShareBar from "@/components/ShareBar";
 
-import PublicCaptions from "@/components/lazy/CaptionsPanel.nossr"; 
-import SocialPreviewStudio from "@/components/lazy/SocialPreviewStudio.nossr"; 
+// Client-only wrappers (each file begins with "use client")
+import PublicCaptions from "@/components/lazy/CaptionsPanel.nossr";
+import SocialPreviewStudio from "@/components/lazy/SocialPreviewStudio.nossr";
 import InviteAnalytics from "@/components/lazy/InviteAnalytics.nossr";
-
-import WishForm from "@/components/lazy/WishForm.nossr"; 
-import WishList from "@/components/lazy/WishList.nossr"; 
-import WishMontageButton from "@/components/lazy/WishMontageButton.nossr"; 
-import RSVPForm from "@/components/lazy/RSVPForm.nossr"; 
+import WishForm from "@/components/lazy/WishForm.nossr";
+import WishList from "@/components/lazy/WishList.nossr";
+import WishMontageButton from "@/components/lazy/WishMontageButton.nossr";
+import RSVPForm from "@/components/lazy/RSVPForm.nossr";
 import RSVPStats from "@/components/lazy/RSVPStats.nossr";
-
-/* Client bits (kept as dynamic to avoid turning this file into a client component) */
-// const WishForm = dynamic(() => import("@/components/WishForm"), { ssr: false });
-// const WishList = dynamic(() => import("@/components/WishList"), { ssr: false });
-// const WishMontageButton = dynamic(
-//   () => import("@/components/WishMontageButton"),
-//   { ssr: false }
-// );
-// const RSVPForm = dynamic(() => import("@/components/RSVPForm"), { ssr: false });
-// const RSVPStats = dynamic(() => import("@/components/RSVPStats"), {
-//   ssr: false,
-// });
-// const PublicCaptions = dynamic(() => import("@/components/CaptionsPanel"), {
-//   ssr: false,
-// });
-// const SocialPreviewStudio = dynamic(
-//   () => import("@/components/SocialPreviewStudio"),
-//   { ssr: false }
-// );
-// const InviteAnalytics = dynamic(() => import("@/components/InviteAnalytics"), {
-//   ssr: false,
-// });
 
 /* --------------------------------------------- */
 /* Data fetch (shared by page + metadata)        */
@@ -45,7 +22,6 @@ async function fetchInvite(id: string): Promise<Invite | null> {
   if (!base) return null;
 
   const r = await fetch(`${base}/api/invites/${id}`, {
-    // Edge-friendly; refresh often while links are being shared
     next: { revalidate: 60 },
   });
   if (!r.ok) return null;
@@ -53,13 +29,16 @@ async function fetchInvite(id: string): Promise<Invite | null> {
   return data.item as Invite;
 }
 
-type Params = { params: { slug: string; id: string } };
+/* --------------------------------------------- */
+/* SEO / Social cards                            */
+/* --------------------------------------------- */
+type RouteParams = { slug: string; id: string };
 
-/* --------------------------------------------- */
-/* SEO / Social cards (robust OG cover)          */
-/* --------------------------------------------- */
-export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const inv = await fetchInvite(params.id);
+export async function generateMetadata(
+  { params }: { params: Promise<RouteParams> }
+): Promise<Metadata> {
+  const { id } = await params;
+  const inv = await fetchInvite(id);
   if (!inv) return { title: "Invite not found" };
 
   const title = inv.title || "Invitation";
@@ -72,19 +51,15 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     !!u && /\.(png|jpe?g|webp|gif)$/i.test(u || "");
 
   let ogUrl: string | undefined =
-    inv.ogImageUrl && looksLikeImage(inv.ogImageUrl)
-      ? inv.ogImageUrl
-      : undefined;
+    inv.ogImageUrl && looksLikeImage(inv.ogImageUrl) ? inv.ogImageUrl : undefined;
 
   if (!ogUrl && base) {
     try {
-      const ensure = await fetch(`${base}/api/invites/${inv.id}/og`, {
-        cache: "no-store",
-      });
+      const ensure = await fetch(`${base}/api/invites/${inv.id}/og`, { cache: "no-store" });
       const j = await ensure.json();
       if (ensure.ok && j?.url) ogUrl = j.url as string;
     } catch {
-      // fall through
+      /* ignore */
     }
   }
 
@@ -117,7 +92,6 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 function FestiveBackdrop() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-      {/* subtle animated-looking glow, no JS needed */}
       <div className="absolute -top-28 left-1/2 h-[40rem] w-[40rem] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(255,193,7,0.18),transparent_60%)] blur-3xl" />
       <div className="absolute top-40 right-[-15%] h-[28rem] w-[28rem] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(244,67,54,0.14),transparent_60%)] blur-3xl" />
       <div className="absolute bottom-[-10%] left-[-10%] h-[26rem] w-[26rem] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(103,58,183,0.14),transparent_60%)] blur-3xl" />
@@ -125,53 +99,15 @@ function FestiveBackdrop() {
   );
 }
 
-function SectionTabs({
-  hasRSVP,
-  hasWishes,
-}: {
-  hasRSVP: boolean;
-  hasWishes: boolean;
-}) {
+function SectionTabs({ hasRSVP, hasWishes }: { hasRSVP: boolean; hasWishes: boolean }) {
   return (
     <div className="sticky top-0 z-30 -mx-4 mb-4 bg-gradient-to-b from-white/80 to-white/60 px-4 py-2 backdrop-blur">
-      <nav
-        aria-label="Sections"
-        className="flex w-full items-center justify-between gap-2 overflow-x-auto"
-      >
-        <a
-          href="#media"
-          className="rounded-full border border-white/60 bg-white/90 px-3 py-1.5 text-xs font-medium text-ink-800 shadow-sm hover:bg-white"
-        >
-          Media
-        </a>
-        {hasWishes && (
-          <a
-            href="#wishes"
-            className="rounded-full border border-white/60 bg-white/90 px-3 py-1.5 text-xs font-medium text-ink-800 shadow-sm hover:bg-white"
-          >
-            Wishes
-          </a>
-        )}
-        {hasRSVP && (
-          <a
-            href="#rsvp"
-            className="rounded-full border border-white/60 bg-white/90 px-3 py-1.5 text-xs font-medium text-ink-800 shadow-sm hover:bg-white"
-          >
-            RSVP
-          </a>
-        )}
-        <a
-          href="#share"
-          className="rounded-full border border-white/60 bg-white/90 px-3 py-1.5 text-xs font-medium text-ink-800 shadow-sm hover:bg-white"
-        >
-          Share
-        </a>
-        <a
-          href="#extras"
-          className="rounded-full border border-white/60 bg-white/90 px-3 py-1.5 text-xs font-medium text-ink-800 shadow-sm hover:bg-white"
-        >
-          Extras
-        </a>
+      <nav aria-label="Sections" className="flex w-full items-center justify-between gap-2 overflow-x-auto">
+        <a href="#media" className="rounded-full border border-white/60 bg-white/90 px-3 py-1.5 text-xs font-medium text-ink-800 shadow-sm hover:bg-white">Media</a>
+        {hasWishes && <a href="#wishes" className="rounded-full border border-white/60 bg-white/90 px-3 py-1.5 text-xs font-medium text-ink-800 shadow-sm hover:bg-white">Wishes</a>}
+        {hasRSVP && <a href="#rsvp" className="rounded-full border border-white/60 bg-white/90 px-3 py-1.5 text-xs font-medium text-ink-800 shadow-sm hover:bg-white">RSVP</a>}
+        <a href="#share" className="rounded-full border border-white/60 bg-white/90 px-3 py-1.5 text-xs font-medium text-ink-800 shadow-sm hover:bg-white">Share</a>
+        <a href="#extras" className="rounded-full border border-white/60 bg-white/90 px-3 py-1.5 text-xs font-medium text-ink-800 shadow-sm hover:bg-white">Extras</a>
       </nav>
     </div>
   );
@@ -180,10 +116,13 @@ function SectionTabs({
 /* --------------------------------------------- */
 /* Page                                          */
 /* --------------------------------------------- */
-export default async function InvitePage({ params }: Params) {
-  const inv = await fetchInvite(params.id);
+export default async function InvitePage(
+  { params }: { params: Promise<RouteParams> }
+) {
+  const { slug, id } = await params;
+  const inv = await fetchInvite(id);
 
-  if (!inv || inv.slug !== params.slug) {
+  if (!inv || inv.slug !== slug) {
     return (
       <main className="mx-auto max-w-2xl px-4 py-12">
         <h1 className="text-xl font-semibold">Invite not found</h1>
@@ -223,11 +162,8 @@ export default async function InvitePage({ params }: Params) {
               {inv.title}
             </span>
           </h1>
-          {inv.subtitle && (
-            <p className="mt-1 text-ink-700">{inv.subtitle}</p>
-          )}
+          {inv.subtitle && <p className="mt-1 text-ink-700">{inv.subtitle}</p>}
 
-          {/* Meta chips (date · venue · owner) */}
           {infoChips.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {infoChips.map((c, i) => (
@@ -242,7 +178,6 @@ export default async function InvitePage({ params }: Params) {
           )}
         </header>
 
-        {/* Sticky tabs reduce long scrolling on mobile */}
         <SectionTabs hasRSVP={hasRSVP} hasWishes={hasWishes} />
 
         {/* Media */}
@@ -259,7 +194,6 @@ export default async function InvitePage({ params }: Params) {
               />
             ) : (
               <div className="relative mx-auto w-full max-w-[560px]">
-                {/* Fixed aspect makes layout stable (for tall invites) */}
                 <div className="relative aspect-[9/16] w-full">
                   <Image
                     src={inv.mediaUrl}
@@ -274,11 +208,8 @@ export default async function InvitePage({ params }: Params) {
             )}
           </div>
 
-          {/* Quick actions below media */}
-          <div
-            id="share"
-            className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-          >
+          {/* Quick actions */}
+          <div id="share" className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <ShareBar title={inv.title} url={url} />
             <div className="flex flex-wrap items-center gap-2">
               {inv.wishesEnabled && <WishMontageButton inviteId={inv.id} />}
@@ -290,7 +221,6 @@ export default async function InvitePage({ params }: Params) {
                   Send a wish
                 </a>
               )}
-              {/* Optional lightweight download */}
               <a
                 href={inv.mediaUrl}
                 download
@@ -316,18 +246,15 @@ export default async function InvitePage({ params }: Params) {
                 try {
                   const key = "fi:shortlist";
                   const list = JSON.parse(
-                    (typeof window !== "undefined" &&
-                      localStorage.getItem(key)) ||
-                      "[]"
+                    (typeof window !== "undefined" && localStorage.getItem(key)) || "[]"
                   );
                   if (!list.find((x: any) => x.id === inv.id)) {
                     list.push({ id: inv.id, slug: inv.slug, title: inv.title });
-                    (typeof window !== "undefined" &&
-                      localStorage.setItem(key, JSON.stringify(list)));
+                    typeof window !== "undefined" && localStorage.setItem(key, JSON.stringify(list));
                   }
                   alert("Saved to shortlist!");
                 } catch {
-                  // no-op
+                  /* no-op */
                 }
               }}
             >
@@ -336,18 +263,14 @@ export default async function InvitePage({ params }: Params) {
           </div>
         </section>
 
-        {/* Optional social studio for guests (OG/image) */}
+        {/* Extras */}
         <section id="extras" className="mt-8 scroll-mt-20">
           {(inv.ogImageUrl || isImage) && (
             <div className="rounded-2xl border border-white/70 bg-white/80 p-3 backdrop-blur">
-              <SocialPreviewStudio
-                src={inv.ogImageUrl || inv.mediaUrl}
-                overlayTitle={inv.title}
-              />
+              <SocialPreviewStudio src={inv.ogImageUrl || inv.mediaUrl} overlayTitle={inv.title} />
             </div>
           )}
 
-          {/* 3 compact captions for guests */}
           <div className="mt-4">
             <PublicCaptions
               templateSlug={inv.slug}
@@ -385,7 +308,7 @@ export default async function InvitePage({ params }: Params) {
         )}
       </main>
 
-      {/* Fire analytics once on client mount */}
+      {/* Analytics (client only) */}
       <InviteAnalytics inviteId={inv.id} />
     </>
   );
