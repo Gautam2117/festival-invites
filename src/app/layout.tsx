@@ -37,7 +37,7 @@ export const metadata: Metadata = {
       "Pick a template, personalize, and export a beautiful video or image.",
     images: [
       {
-        url: "/og.png",
+        url: "https://festival-invites.vercel.app/og-image_current.png",
         width: 1200,
         height: 630,
         alt: "Festival Invites preview",
