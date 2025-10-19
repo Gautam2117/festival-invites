@@ -4,14 +4,16 @@ import { adminDb } from "@/lib/fbAdmin";
 
 export const runtime = "nodejs";
 
-export async function GET(req: Request, { params }: { params: { inviteId: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ inviteId: string }> }) {
   try {
+    const { inviteId } = await params;
+    
     const url = new URL(req.url);
     const count = Math.max(1, Math.min(12, Number(url.searchParams.get("count") || 6)));
     const seconds = Math.max(8, Math.min(18, Number(url.searchParams.get("seconds") || 12)));
 
     // Get invite for theme/brand/background (optional)
-    const invSnap = await adminDb.collection("invites").doc(params.inviteId).get();
+    const invSnap = await adminDb.collection("invites").doc(inviteId).get();
     if (!invSnap.exists) {
       return NextResponse.json({ error: "Invite not found" }, { status: 404 });
     }
@@ -20,7 +22,7 @@ export async function GET(req: Request, { params }: { params: { inviteId: string
     // Pull recent approved wishes
     const ws = await adminDb
       .collection("wishes")
-      .where("inviteId", "==", params.inviteId)
+      .where("inviteId", "==", inviteId)
       .where("approved", "==", true)
       .orderBy("createdAt", "desc")
       .limit(count)

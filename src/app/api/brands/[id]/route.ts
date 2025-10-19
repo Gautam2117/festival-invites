@@ -13,17 +13,19 @@ async function getClientId() {
   return bag.get("cid")?.value || "";
 }
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
+export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const cid = await getClientId();
-  const snap = await adminDb.collection("brands").doc(params.id).get();
+  const snap = await adminDb.collection("brands").doc(id).get();
   if (!snap.exists) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const data = snap.data() as any;
   if (data.cid !== cid) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   return NextResponse.json({ item: { id: snap.id, ...data } });
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   if (!isAdmin(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  await adminDb.collection("brands").doc(params.id).delete();
+  await adminDb.collection("brands").doc(id).delete();
   return NextResponse.json({ ok: true });
 }

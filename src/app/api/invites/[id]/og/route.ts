@@ -9,8 +9,9 @@ function looksLikeImage(u?: string) {
   return /\.(png|jpg|jpeg|webp|gif)$/i.test(u);
 }
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
-  const ref = adminDb.collection("invites").doc(params.id);
+export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const ref = adminDb.collection("invites").doc(id);
   const snap = await ref.get();
   if (!snap.exists) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

@@ -11,16 +11,17 @@ const MAX_PER_PAGE = 100;
 const COOLDOWN_MS = 60_000; // 60s/IP/invite
 const wishLimiter = makeLimiter(Number(process.env.WISH_PER_IP_PER_MIN || 2), 60);
 
-export async function GET(req: Request, { params }: { params: { inviteId: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ inviteId: string }> }) {
   const url = new URL(req.url);
   const after = Number(url.searchParams.get("after") || 0);
   const all = url.searchParams.get("all") === "1";
   const isAdmin = req.headers.get("x-admin-key") === process.env.ADMIN_KEY;
 
   try {
+    const { inviteId } = await params;
     let q = adminDb
       .collection("wishes")
-      .where("inviteId", "==", params.inviteId)
+      .where("inviteId", "==", inviteId)
       .orderBy("createdAt", "desc")
       .limit(MAX_PER_PAGE);
 

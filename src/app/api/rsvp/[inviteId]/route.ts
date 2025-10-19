@@ -41,9 +41,10 @@ async function readStats(inviteId: string) {
   return snap.exists ? ({ ...base, ...(snap.data() as any) } as RSVPStats) : base;
 }
 
-export async function GET(req: Request, { params }: { params: { inviteId: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ inviteId: string }> }) {
+  const { inviteId } = await params;
   const bag = await cookies();
-  const cookieKey = `rsvp_${params.inviteId}`;
+  const cookieKey = `rsvp_${inviteId}`;
   const mineId = bag.get(cookieKey)?.value;
 
   let mine: RSVP | null = null;
@@ -51,13 +52,13 @@ export async function GET(req: Request, { params }: { params: { inviteId: string
     const snap = await adminDb.collection("rsvps").doc(mineId).get();
     if (snap.exists) {
       const d = snap.data() as any;
-      if (d.inviteId === params.inviteId) {
+      if (d.inviteId === inviteId) {
         mine = { ...(d as RSVP), id: snap.id } as RSVP;
       }
     }
   }
 
-  const stats = await readStats(params.inviteId);
+  const stats = await readStats(inviteId);
   return NextResponse.json({ mine, stats });
 }
 
