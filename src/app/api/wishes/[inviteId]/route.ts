@@ -37,10 +37,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ inviteId
   }
 }
 
-export async function POST(req: Request, { params }: { params: { inviteId: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ inviteId: string }> }) {
   try {
     const ip = getIP(req);
-    await limitOrThrow(wishLimiter, `wish:${ip}:${params.inviteId}`, "Please wait before sending another wish.");
+    const { inviteId } = await params;
+    await limitOrThrow(wishLimiter, `wish:${ip}:${inviteId}`, "Please wait before sending another wish.");
 
     const body = await req.json();
 
@@ -56,7 +57,7 @@ export async function POST(req: Request, { params }: { params: { inviteId: strin
     }
 
     // IP cooldown via cookie (per invite)
-    const cookieKey = `w_${params.inviteId}`;
+    const cookieKey = `w_${inviteId}`;
     const cookies = (req.headers.get("cookie") || "").split(/;\s*/);
     const prev = cookies.find((c) => c.startsWith(cookieKey + "="))?.split("=")[1];
     const last = prev ? Number(prev) : 0;
@@ -68,7 +69,7 @@ export async function POST(req: Request, { params }: { params: { inviteId: strin
     const approved = !needsReview(message) && (!senderName || !needsReview(senderName));
 
     const docRef = await adminDb.collection("wishes").add({
-      inviteId: params.inviteId,
+      inviteId,
       message,
       senderName,
       senderType,

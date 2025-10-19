@@ -62,9 +62,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ inviteId
   return NextResponse.json({ mine, stats });
 }
 
-export async function POST(req: Request, { params }: { params: { inviteId: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ inviteId: string }> }) {
   const bag = await cookies();
-  const cookieKey = `rsvp_${params.inviteId}`;
+  const cookieKey = `rsvp_${(await params).inviteId}`;
   const existingId = bag.get(cookieKey)?.value || "";
 
   const ip = getIP(req);
@@ -93,7 +93,7 @@ export async function POST(req: Request, { params }: { params: { inviteId: strin
   if (docId) {
     const ref = adminDb.collection("rsvps").doc(docId);
     const snap = await ref.get();
-    if (snap.exists && (snap.data() as any).inviteId === params.inviteId) {
+    if (snap.exists && (snap.data() as any).inviteId === (await params).inviteId) {
       const prev = snap.data() as any;
 
       // compute delta for stats
@@ -124,7 +124,7 @@ export async function POST(req: Request, { params }: { params: { inviteId: strin
 
   if (!docId) {
     const ref = await adminDb.collection("rsvps").add({
-      inviteId: params.inviteId,
+      inviteId: (await params).inviteId,
       attending,
       adults,
       kids,
@@ -146,10 +146,10 @@ export async function POST(req: Request, { params }: { params: { inviteId: strin
   }
 
   // Update aggregate stats with atomic increments
-  const sref = adminDb.collection("rsvp_stats").doc(params.inviteId);
+  const sref = adminDb.collection("rsvp_stats").doc((await params).inviteId);
   await sref.set(
     {
-      inviteId: params.inviteId,
+      inviteId: (await params).inviteId,
       yes: FieldValue.increment(delta.yes),
       no: FieldValue.increment(delta.no),
       adults: FieldValue.increment(delta.adults),
