@@ -1,7 +1,7 @@
-// remotion/FestivalIntro.tsx
+// src/previews/FestivalIntro.tsx
 "use client";
 
-import { JSX } from "react";
+import * as React from "react";
 import {
   AbsoluteFill,
   Img,
@@ -14,6 +14,20 @@ import {
   Audio,
   random,
 } from "remotion";
+
+/* =============================================================================
+   Types & Props (backwards compatible; only optional additions)
+============================================================================= */
+
+type BrandInput = {
+  name?: string;
+  logoUrl?: string;
+  tagline?: string;
+  primary?: string;
+  secondary?: string;
+  ribbon?: boolean;
+  endCard?: boolean;
+};
 
 type Props = {
   title: string;
@@ -30,7 +44,7 @@ type Props = {
   /** keep for API compatibility — we show a watermark iff true OR tier==='free' */
   watermark?: boolean;
 
-  /** Anti-crop watermark controls (optional, defaults are safe). */
+  /** Anti-crop watermark controls */
   watermarkStrategy?: "ribbon" | "tile" | "ribbon+tile";
   wmSeed?: number;
   wmText?: string;
@@ -38,7 +52,21 @@ type Props = {
 
   /** Wish-only templates hide names/date/venue */
   isWish?: boolean;
+
+  /** Brand kit (ribbon + end-card) */
+  brand?: BrandInput;
+
+  /** Optional accent trio; affects aurora/garland/rangoli hues */
+  accent?: {
+    a?: string; // warm
+    b?: string; // pink
+    c?: string; // violet
+  };
 };
+
+/* =============================================================================
+   Utilities
+============================================================================= */
 
 const resolveAsset = (src?: string | null) => {
   if (!src) return null;
@@ -48,49 +76,36 @@ const resolveAsset = (src?: string | null) => {
 };
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-/* --- Visual micro-systems ------------------------------------------------ */
+/** Scales title font a bit for very long titles while keeping a luxury feel */
+function titleSizeFor(length: number, base = 46) {
+  if (length <= 22) return base;            // short & punchy
+  if (length <= 34) return base - 4;        // medium
+  if (length <= 50) return base - 8;        // long
+  return Math.max(28, base - 12);           // ultra-long safeguard
+}
 
-const Sheen: React.FC<{ x: number; rotate?: number; opacity?: number }> = ({
-  x,
-  rotate = -16,
-  opacity = 0.22,
-}) => (
-  <div
-    style={{
-      position: "absolute",
-      top: "18%",
-      left: x,
-      width: 240,
-      height: "64%",
-      transform: `rotate(${rotate}deg)`,
-      background:
-        "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.75) 50%, rgba(255,255,255,0) 100%)",
-      filter: "blur(8px)",
-      opacity,
-      pointerEvents: "none",
-      mixBlendMode: "overlay",
-    }}
-  />
-);
+/** Gentle bezier-like ease without importing a lib */
+const easeInOut = (t: number) => 0.5 - Math.cos(Math.PI * t) / 2;
 
-const SparklesTwinkle: React.FC<{ count: number; seed: string }> = ({
-  count,
-  seed,
-}) => {
+/* =============================================================================
+   Atmosphere: sparkles, bokeh, garland, rangoli, grain
+============================================================================= */
+
+const SparklesTwinkle: React.FC<{ count: number; seed: string }> = ({ count, seed }) => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
 
   return (
     <>
-      {new Array(count).fill(0).map((_, i) => {
+      {Array.from({ length: count }).map((_, i) => {
         const r = (k: number) => random(`${seed}-${i}-${k}`);
         const x = r(0) * width;
         const y = r(1) * height;
-        const base = 0.3 + r(2) * 0.6;
-        const tw = Math.sin((frame / fps) * (0.8 + r(3) * 1.4) + r(4) * 6.28);
-        const s = 1.4 + r(5) * 2.2;
-        const o = clamp01(base * (0.45 + 0.55 * (0.5 + 0.5 * tw)));
+        const tw = Math.sin((frame / fps) * (0.8 + r(2) * 1.2) + r(3) * 6.28);
+        const s = 1.2 + r(4) * 2.2;
+        const opacity = 0.18 + 0.42 * (0.5 + 0.5 * tw);
 
         return (
           <div
@@ -99,12 +114,12 @@ const SparklesTwinkle: React.FC<{ count: number; seed: string }> = ({
               position: "absolute",
               left: x,
               top: y,
-              width: s * 9,
-              height: s * 9,
+              width: s * 10,
+              height: s * 10,
               background:
-                "radial-gradient(circle, rgba(255,255,255,0.9), rgba(255,255,255,0) 60%)",
+                "radial-gradient(circle, rgba(255,230,160,0.95), rgba(255,230,160,0.0) 60%)",
               filter: "blur(0.6px)",
-              opacity: o * 0.6,
+              opacity,
               mixBlendMode: "plus-lighter",
             }}
           />
@@ -114,26 +129,23 @@ const SparklesTwinkle: React.FC<{ count: number; seed: string }> = ({
   );
 };
 
-/** floating bokeh lights (deterministic using remotion/random) */
 const Bokeh: React.FC<{ count: number; seed: string }> = ({ count, seed }) => {
   const frame = useCurrentFrame();
   const { height, width, fps } = useVideoConfig();
 
   return (
     <>
-      {new Array(count).fill(0).map((_, i) => {
+      {Array.from({ length: count }).map((_, i) => {
         const r = (t: number) => random(`${seed}-${i}-${t}`);
         const size = 40 + r(0) * 70;
         const startX = r(1) * (width + 200) - 100;
         const baseY = r(2) * height;
-        const speed = 12 + r(3) * 22; // px/sec
-        const drift = Math.sin((frame / fps) * 1.2 + r(4) * 6.28) * 60;
-
-        // float upwards slowly
-        const y = (baseY - (frame / fps) * speed) % (height + 120);
+        const speed = 10 + r(3) * 22; // px/s
+        const drift = Math.sin((frame / fps) * 1.1 + r(4) * 6.28) * 60;
+        const y = (baseY - (frame / fps) * speed) % (height + 160);
         const x = startX + drift;
+        const o = 0.10 + r(5) * 0.15;
 
-        const o = 0.12 + r(5) * 0.15;
         return (
           <div
             key={i}
@@ -157,25 +169,120 @@ const Bokeh: React.FC<{ count: number; seed: string }> = ({ count, seed }) => {
   );
 };
 
-/** tiled anti-crop watermark overlay */
+/** Subtle swinging garland along top edge */
+const Garland: React.FC<{ t: number; colors: [string, string, string] }> = ({ t, colors }) => {
+  const sway = Math.sin(t * 2.4) * 5; // degrees
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: -8,
+        left: "50%",
+        width: "140%",
+        transform: `translateX(-50%) rotate(${sway}deg)`,
+        opacity: 0.26,
+        mixBlendMode: "multiply",
+      }}
+    >
+      <svg viewBox="0 0 1200 220" width="100%" aria-hidden>
+        <defs>
+          <linearGradient id="g-garland-premium" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor={colors[0]} />
+            <stop offset="50%" stopColor={colors[1]} />
+            <stop offset="100%" stopColor={colors[2]} />
+          </linearGradient>
+        </defs>
+        <path
+          d="M0,100 C200,40 400,220 600,120 C800,20 1000,200 1200,120"
+          fill="none"
+          stroke="url(#g-garland-premium)"
+          strokeWidth="8"
+          strokeLinecap="round"
+          opacity="0.8"
+        />
+        {Array.from({ length: 9 }).map((_, i) => {
+          const x = 60 + i * 120;
+          const y = i % 2 === 0 ? 140 : 110;
+          return <circle key={i} cx={x} cy={y} r="6" fill="url(#g-garland-premium)" />;
+        })}
+      </svg>
+    </div>
+  );
+};
+
+/** Little rangoli pulse at bottom center */
+const Rangoli: React.FC<{ t: number; colors: [string, string, string] }> = ({ t, colors }) => {
+  const base = 1 + Math.sin(t * 2.2) * 0.04;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: "50%",
+        bottom: 50,
+        transform: `translateX(-50%) scale(${base})`,
+        opacity: 0.55,
+        filter: "blur(0.2px)",
+      }}
+    >
+      <svg width="220" height="220" viewBox="0 0 200 200" aria-hidden>
+        <defs>
+          <radialGradient id="rg1">
+            <stop offset="0%" stopColor={colors[0]} stopOpacity="1" />
+            <stop offset="100%" stopColor={colors[1]} stopOpacity="0.25" />
+          </radialGradient>
+          <radialGradient id="rg2">
+            <stop offset="0%" stopColor={colors[1]} stopOpacity="1" />
+            <stop offset="100%" stopColor={colors[2]} stopOpacity="0.25" />
+          </radialGradient>
+        </defs>
+        {Array.from({ length: 8 }).map((_, i) => {
+          const angle = (i * Math.PI) / 4;
+          const cx = 100 + Math.cos(angle) * 46;
+          const cy = 100 + Math.sin(angle) * 46;
+          return <circle key={i} cx={cx} cy={cy} r="18" fill={i % 2 ? "url(#rg1)" : "url(#rg2)"} />;
+        })}
+        <circle cx="100" cy="100" r="12" fill={colors[0]} />
+      </svg>
+    </div>
+  );
+};
+
+/** Film grain (ultra-subtle) */
+const Grain: React.FC<{ opacity?: number }> = ({ opacity = 0.06 }) => {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        opacity,
+        backgroundImage:
+          "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 40 40'><circle cx='1' cy='1' r='1' fill='black' opacity='0.7'/></svg>\")",
+        mixBlendMode: "multiply",
+        pointerEvents: "none",
+      }}
+    />
+  );
+};
+
+/* =============================================================================
+   Watermarks & Confetti
+============================================================================= */
+
 const WatermarkTile: React.FC<{
   text: string;
   opacity?: number;
   seed?: number;
 }> = ({ text, opacity = 0.18, seed = 0 }) => {
   const { width, height } = useVideoConfig();
-
-  // Staggered grid with deterministic offset
   const r = (k: number) => random(`wm-${seed}-${k}`);
   const stepX = 260;
   const stepY = 160;
   const xOffset = Math.floor(r(1) * stepX);
   const yOffset = Math.floor(r(2) * stepY * 0.5);
-
   const cols = Math.ceil((width + stepX * 2) / stepX);
   const rows = Math.ceil((height + stepY * 2) / stepY);
 
-  const items: JSX.Element[] = [];
+  const items: React.ReactNode[] = [];
   for (let ry = -1; ry < rows; ry++) {
     for (let cx = -1; cx < cols; cx++) {
       const x = cx * stepX + xOffset;
@@ -207,24 +314,23 @@ const WatermarkTile: React.FC<{
   return <>{items}</>;
 };
 
-/** paid-only confetti burst */
 const ConfettiBurst: React.FC<{ at: number; seed: string }> = ({ at, seed }) => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
-  const t = clamp01((frame - at) / (fps * 0.9)); // ~0.9s burst
+  const t = clamp01((frame - at) / (fps * 0.9));
   if (t <= 0 || t > 1) return null;
 
   const count = 42;
   return (
     <>
-      {new Array(count).fill(0).map((_, i) => {
+      {Array.from({ length: count }).map((_, i) => {
         const r = (k: number) => random(`${seed}-${i}-${k}`);
         const angle = r(0) * Math.PI * 2;
         const speed = 420 + r(1) * 640;
         const vx = Math.cos(angle) * speed;
         const vy = Math.sin(angle) * speed;
         const x = width / 2 + vx * t * 0.6;
-        const y = height / 2 + vy * t * 0.45 + 120 * t * t; // gravity
+        const y = height / 2 + vy * t * 0.45 + 120 * t * t;
         const rot = r(2) * 360 * t;
         const s = 6 + r(3) * 10;
         const bg = `hsl(${Math.floor(r(4) * 360)}, 80%, ${55 + r(5) * 20}%)`;
@@ -251,7 +357,9 @@ const ConfettiBurst: React.FC<{ at: number; seed: string }> = ({ at, seed }) => 
   );
 };
 
-/* --- Main composition ---------------------------------------------------- */
+/* =============================================================================
+   Main Composition
+============================================================================= */
 
 export const FestivalIntro: React.FC<Props> = (p) => {
   const {
@@ -271,32 +379,31 @@ export const FestivalIntro: React.FC<Props> = (p) => {
     wmOpacity = 0.18,
 
     isWish = false,
+    brand,
+    accent,
   } = p;
 
   const frame = useCurrentFrame();
   const { fps, durationInFrames, width, height } = useVideoConfig();
 
-  // base entrances
-  const intro = spring({ frame, fps, config: { damping: 200, mass: 0.8 } });
-  const intro2 = spring({ frame: frame - 10, fps, config: { damping: 200, mass: 0.8 } });
-  const intro3 = spring({ frame: frame - 18, fps, config: { damping: 200, mass: 0.8 } });
+  // Theme hues
+  const colA = accent?.a ?? "#FFB74D"; // warm amber
+  const colB = accent?.b ?? "#F06292"; // pink
+  const colC = accent?.c ?? "#7C4DFF"; // violet
 
-  // Animated gradient background (slow rotation)
+  // Base entrances
+  const intro = spring({ frame, fps, config: { damping: 200, mass: 0.8 } });
+
+  // Animated conic gradient underlay (slow rotation)
   const angle = interpolate(frame, [0, durationInFrames], [0, 360], { easing: Easing.linear });
 
-  // Ken Burns on bg image: scale + subtle pan + tilt
+  // Ken Burns on bg image (tasteful)
   const kbScale = interpolate(frame, [0, durationInFrames], [1.08, 1.18]);
   const kbX = interpolate(frame, [0, durationInFrames], [-0.02 * width, 0.02 * width]);
   const kbY = interpolate(frame, [0, durationInFrames], [0.01 * height, -0.015 * height]);
   const kbRot = interpolate(frame, [0, durationInFrames], [-0.6, 0.6]); // degrees
 
-  // Title shimmer
-  const shimmerX = interpolate(
-    frame % Math.round(fps * 2.2),
-    [0, fps * 1.1, fps * 2.2],
-    [-320, width + 320, width + 320]
-  );
-
+  const time = frame / fps;
   const bgSrc = resolveAsset(bg);
   const musicSrc = resolveAsset(music);
 
@@ -308,16 +415,28 @@ export const FestivalIntro: React.FC<Props> = (p) => {
   const showTile =
     mustWatermark && (watermarkStrategy === "tile" || watermarkStrategy === "ribbon+tile");
 
+  // End-card timing
+  const appear = interpolate(
+    frame,
+    [durationInFrames - fps, durationInFrames - fps / 3],
+    [0, 1],
+    { extrapolateRight: "clamp" }
+  );
+
+  // Title shimmer sweep
+  const shimmer = easeInOut(clamp01((Math.sin(time * 1.6) + 1) / 2));
+  const titleSize = titleSizeFor((title || "").length, height < 1000 ? 42 : 46);
+
   return (
     <AbsoluteFill style={{ backgroundColor: "#060606", overflow: "hidden" }}>
-      {/* Animated conic gradient underlay */}
+      {/* Aurora underlay */}
       <div
         style={{
           position: "absolute",
           inset: "-20%",
-          background: `conic-gradient(from ${angle}deg, #FFB74D, #FF7043, #F06292, #7C4DFF, #FFB74D)`,
-          filter: "blur(60px) saturate(1.15)",
-          opacity: 0.55,
+          background: `conic-gradient(from ${angle}deg, ${colA}, ${colB}, ${colC}, ${colA})`,
+          filter: "blur(60px) saturate(1.12)",
+          opacity: 0.52,
         }}
       />
 
@@ -337,39 +456,35 @@ export const FestivalIntro: React.FC<Props> = (p) => {
         />
       )}
 
-      {/* Atmosphere */}
-      <Bokeh count={26} seed="bokeh" />
+      {/* Atmosphere layers */}
+      <Bokeh count={24} seed="bokeh" />
       <SparklesTwinkle count={18} seed="twinkle" />
+      <Garland t={time} colors={[colA, colB, colC]} />
+      <Rangoli t={time} colors={[colA, colB, colC]} />
 
-      {/* Subtle veil to help text legibility */}
+      {/* Veil for legibility */}
       <div
         style={{
           position: "absolute",
           inset: 0,
           background:
-            "linear-gradient(to bottom, rgba(255,255,255,0.12), rgba(0,0,0,0.25) 70%, rgba(0,0,0,0.55))",
+            "linear-gradient(to bottom, rgba(255,255,255,0.10), rgba(0,0,0,0.28) 65%, rgba(0,0,0,0.58))",
         }}
       />
 
-      /* ------------------------------------------------------------------ */
-      /*  ⚡ Minimal luxe overlay – title-first, no big box                 */
-      /* ------------------------------------------------------------------ */
-
+      {/* ===== Lux Title Block (glass chip with gradient stroke) ===== */}
       <div
-        /* parent wrapper purely for a thin gradient stroke */
         style={{
           position: "absolute",
           left: "50%",
-          bottom: "14%",                 // sit in lower third
+          bottom: "14%",
           transform: `translateX(-50%) scale(${0.94 + intro * 0.06})`,
           padding: 2,
           borderRadius: 28,
-          background:
-            "linear-gradient(135deg,#FFD36E 0%,#FF9A5A 18%,#FF67B0 50%,#8B6CFF 82%,#FFD36E 100%)",
+          background: `linear-gradient(135deg, ${colA} 0%, ${colB} 45%, ${colC} 100%)`,
           boxShadow: "0 16px 60px rgba(0,0,0,0.35)",
         }}
       >
-        {/* frosted-glass overlay – the only visible “box” now */}
         <div
           style={{
             borderRadius: 26,
@@ -381,29 +496,40 @@ export const FestivalIntro: React.FC<Props> = (p) => {
             textAlign: "center",
             color: "#fff",
             pointerEvents: "none",
-            opacity: intro,               // nice spring entrance
+            opacity: intro,
           }}
         >
-          {/* ===== Title ===== */}
-          <h1
+          {/* Title with animated shimmer mask */}
+          <div
             style={{
-              margin: 0,
-              fontSize: 42,
-              lineHeight: 1.1,
-              letterSpacing: 0.25,
-              fontWeight: 800,
-              textShadow: "0 2px 18px rgba(0,0,0,0.45)",
+              display: "inline-block",
+              position: "relative",
+              padding: "0 2px",
               background:
-                "linear-gradient(135deg,#ffffff 0%,#ffe8c6 45%,#ffd6ff 80%)",
+                "linear-gradient(135deg, #ffffff 0%, #fff2cf 35%, #ffd6ff 70%, #ffffff 100%)",
               WebkitBackgroundClip: "text",
               backgroundClip: "text",
               color: "transparent",
+              textShadow: "0 2px 18px rgba(0,0,0,0.45)",
+              fontWeight: 800,
+              fontSize: titleSize,
+              lineHeight: 1.1,
+              letterSpacing: 0.25,
+              // shimmer mask sweep
+              maskImage:
+                "linear-gradient(120deg, rgba(0,0,0,0.10) 40%, rgba(0,0,0,1) 50%, rgba(0,0,0,0.10) 60%)",
+              WebkitMaskImage:
+                "linear-gradient(120deg, rgba(0,0,0,0.10) 40%, rgba(0,0,0,1) 50%, rgba(0,0,0,0.10) 60%)",
+              maskPosition: `${lerp(-60, 60, shimmer)}% 0%`,
+              maskSize: "200% 100%",
+              WebkitMaskPosition: `${lerp(-60, 60, shimmer)}% 0%`,
+              WebkitMaskSize: "200% 100%",
             }}
           >
             {title}
-          </h1>
+          </div>
 
-          {/* ===== Names + details (skipped for wishes) ===== */}
+          {/* Names + details (skip for wish) */}
           {!isWish && (
             <div
               style={{
@@ -418,6 +544,7 @@ export const FestivalIntro: React.FC<Props> = (p) => {
                 border: "1px solid rgba(255,255,255,0.22)",
                 fontWeight: 600,
                 fontSize: 18,
+                textShadow: "0 1px 6px rgba(0,0,0,0.35)",
               }}
             >
               <span>{names}</span>
@@ -431,7 +558,7 @@ export const FestivalIntro: React.FC<Props> = (p) => {
                       background: "rgba(255,255,255,0.7)",
                     }}
                   />
-                  <span style={{ opacity: 0.9 }}>
+                  <span style={{ opacity: 0.92 }}>
                     {date}
                     {venue ? ` · ${venue}` : ""}
                   </span>
@@ -442,6 +569,38 @@ export const FestivalIntro: React.FC<Props> = (p) => {
         </div>
       </div>
 
+      {/* Brand ribbon (top-right) */}
+      {brand?.ribbon && (brand?.logoUrl || brand?.name) && (
+        <div
+          style={{
+            position: "absolute",
+            top: 24,
+            right: 24,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            background: brand?.primary || "#111827",
+            color: "white",
+            padding: "10px 14px",
+            borderRadius: 12,
+            boxShadow: "0 10px 30px rgba(0,0,0,.25)",
+            border: `1px solid ${brand?.secondary || "rgba(255,255,255,0.25)"}`,
+          }}
+        >
+          {brand?.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={brand.logoUrl}
+              alt="logo"
+              width={28}
+              height={28}
+              style={{ borderRadius: 6, objectFit: "cover" }}
+            />
+          ) : null}
+          <div style={{ fontWeight: 700 }}>{brand?.name}</div>
+        </div>
+      )}
+
       {/* Extra festivities for HD */}
       {tier === "hd" && (
         <>
@@ -450,10 +609,9 @@ export const FestivalIntro: React.FC<Props> = (p) => {
         </>
       )}
 
-      {/* Tiled anti-crop watermark (FREE / forced watermark) */}
+      {/* Anti-crop watermarks */}
       {showTile && <WatermarkTile text={wmText} opacity={wmOpacity} seed={wmSeed} />}
 
-      {/* Bottom ribbon watermark – visible on FREE if strategy includes ribbon */}
       {showRibbon && (
         <div
           style={{
@@ -490,7 +648,45 @@ export const FestivalIntro: React.FC<Props> = (p) => {
         </div>
       )}
 
-      {/* Music – use callback to avoid Remotion volume warning */}
+      {/* End-card (brandable) */}
+      {brand?.endCard && (
+        <AbsoluteFill
+          style={{
+            opacity: appear,
+            background: "rgba(0,0,0,.72)",
+            color: "white",
+            display: "grid",
+            placeItems: "center",
+            padding: 40,
+          }}
+        >
+          <div style={{ textAlign: "center" }}>
+            {brand?.logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={brand.logoUrl}
+                alt="logo"
+                width={96}
+                height={96}
+                style={{ display: "inline-block", borderRadius: 16, marginBottom: 16 }}
+              />
+            )}
+            <div style={{ fontSize: 40, fontWeight: 800 }}>
+              {brand?.name || "With love"}
+            </div>
+            {brand?.tagline && (
+              <div style={{ marginTop: 8, fontSize: 22, opacity: 0.9 }}>
+                {brand.tagline}
+              </div>
+            )}
+          </div>
+        </AbsoluteFill>
+      )}
+
+      {/* Grain (top-most, faint) */}
+      <Grain opacity={0.05} />
+
+      {/* Music with soft fades */}
       {musicSrc && (
         <Audio
           src={musicSrc}

@@ -158,6 +158,31 @@ export const copy: Record<Lang, Copy> = {
         date: sampleDateEN,
         venue: "Your City",
       },
+      // In copy.en.defaults (add these keys)
+      "durga-puja": {
+        title: "Durga Puja",
+        names: "Sharod Shubhechha",
+        date: sampleDateEN,
+        venue: "Pandal / Community Grounds",
+      },
+      chhath: {
+        title: "Chhath Puja",
+        names: "With devotion and gratitude",
+        date: sampleDateEN,
+        venue: "Riverbank / Ghat",
+      },
+      baisakhi: {
+        title: "Happy Baisakhi",
+        names: "Dhol, bhangra & joy",
+        date: sampleDateEN,
+        venue: "Gurudwara / Community",
+      },
+      vishu: {
+        title: "Happy Vishu",
+        names: "With love and light",
+        date: sampleDateEN,
+        venue: "Home / Temple",
+      },
 
       // Daily wishes (no details required)
       "good-morning": { title: "Good Morning", ...WISH },
@@ -300,6 +325,31 @@ export const copy: Record<Lang, Copy> = {
         date: sampleDateHI,
         venue: "आपका शहर",
       },
+      // In copy.hi.defaults
+      "durga-puja": {
+        title: "दुर्गा पूजा",
+        names: "शारद शुभेच्छा",
+        date: sampleDateHI,
+        venue: "पंडाल / सामुदायिक मैदान",
+      },
+      chhath: {
+        title: "छठ पूजा",
+        names: "भक्ति और कृतज्ञता के साथ",
+        date: sampleDateHI,
+        venue: "नदी तट / घाट",
+      },
+      baisakhi: {
+        title: "बैसाखी की शुभकामनाएँ",
+        names: "ढोल, भांगड़ा और खुशी",
+        date: sampleDateHI,
+        venue: "गुरुद्वारा / समुदाय",
+      },
+      vishu: {
+        title: "विशु की शुभकामनाएँ",
+        names: "प्यार और प्रकाश के साथ",
+        date: sampleDateHI,
+        venue: "घर / मंदिर",
+      },
 
       // Daily wishes
       "good-morning": { title: "शुभ प्रभात", ...WISH },
@@ -441,6 +491,31 @@ export const copy: Record<Lang, Copy> = {
         names: "Aapka Naam & Parivaar",
         date: sampleDateHG,
         venue: "Your City",
+      },
+      // In copy.hinglish.defaults
+      "durga-puja": {
+        title: "Durga Puja",
+        names: "Sharod Shubhechha",
+        date: sampleDateHG,
+        venue: "Pandal / Grounds",
+      },
+      chhath: {
+        title: "Chhath Puja",
+        names: "Bhakti aur shukriya ke saath",
+        date: sampleDateHG,
+        venue: "Ghat / Riverbank",
+      },
+      baisakhi: {
+        title: "Happy Baisakhi",
+        names: "Dhol, bhangra & khushi",
+        date: sampleDateHG,
+        venue: "Gurudwara / Community",
+      },
+      vishu: {
+        title: "Happy Vishu",
+        names: "With love & light",
+        date: sampleDateHG,
+        venue: "Home / Temple",
       },
 
       // Daily wishes

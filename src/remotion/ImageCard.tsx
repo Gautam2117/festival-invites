@@ -1,7 +1,7 @@
-// remotion/ImageCard.tsx
+// src/previews/ImageCard.tsx
 "use client";
 
-import { JSX } from "react";
+import * as React from "react";
 import {
   AbsoluteFill,
   Img,
@@ -13,6 +13,20 @@ import {
   Easing,
   random,
 } from "remotion";
+
+/* ============================================================================
+   Types (backward-compatible) + optional accent theme
+============================================================================ */
+
+type BrandInput = {
+  name?: string;
+  logoUrl?: string;
+  tagline?: string;
+  primary?: string;
+  secondary?: string;
+  ribbon?: boolean;   // visible on stills
+  endCard?: boolean;  // ignored on stills
+};
 
 type Props = {
   title: string;
@@ -31,7 +45,21 @@ type Props = {
 
   /** Wish-only templates hide names/date/venue */
   isWish?: boolean;
+
+  /** Brand kit (ribbon only on stills) */
+  brand?: BrandInput;
+
+  /** Optional accent trio; affects aurora/garland/rangoli hues */
+  accent?: {
+    a?: string; // warm
+    b?: string; // pink
+    c?: string; // violet
+  };
 };
+
+/* ============================================================================
+   Utilities
+============================================================================ */
 
 const resolve = (src?: string | null) => {
   if (!src) return null;
@@ -42,30 +70,19 @@ const resolve = (src?: string | null) => {
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 
-/* ---- Visual micro-elements -------------------------------------------- */
+/** Adaptive title size to keep long headings classy */
+const titleSizeFor = (len: number, base = 46) => {
+  if (len <= 22) return base;
+  if (len <= 34) return base - 4;
+  if (len <= 50) return base - 8;
+  return Math.max(28, base - 12);
+};
 
-const Sheen: React.FC<{ x: number; rotate?: number; opacity?: number }> = ({
-  x,
-  rotate = -16,
-  opacity = 0.16,
-}) => (
-  <div
-    style={{
-      position: "absolute",
-      top: "18%",
-      left: x,
-      width: 220,
-      height: "64%",
-      transform: `rotate(${rotate}deg)`,
-      background:
-        "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.75) 50%, rgba(255,255,255,0) 100%)",
-      filter: "blur(8px)",
-      opacity,
-      pointerEvents: "none",
-      mixBlendMode: "overlay",
-    }}
-  />
-);
+const easeInOut = (t: number) => 0.5 - Math.cos(Math.PI * t) / 2;
+
+/* ============================================================================
+   Atmosphere layers (sparkles, bokeh, garland, rangoli, grain)
+============================================================================ */
 
 const Sparkles: React.FC<{ count: number; seed: string }> = ({ count, seed }) => {
   const frame = useCurrentFrame();
@@ -73,11 +90,10 @@ const Sparkles: React.FC<{ count: number; seed: string }> = ({ count, seed }) =>
 
   return (
     <>
-      {new Array(count).fill(0).map((_, i) => {
+      {Array.from({ length: count }).map((_, i) => {
         const r = (k: number) => random(`${seed}-${i}-${k}`);
         const x = r(0) * width;
         const y = r(1) * height;
-        // gentle twinkle (also resolves nicely on still frames)
         const phase = r(2) * Math.PI * 2;
         const tw = Math.sin((frame / fps) * (0.8 + r(3) * 1.4) + phase);
         const base = 0.35 + r(4) * 0.55;
@@ -113,19 +129,17 @@ const Bokeh: React.FC<{ count: number; seed: string }> = ({ count, seed }) => {
 
   return (
     <>
-      {new Array(count).fill(0).map((_, i) => {
+      {Array.from({ length: count }).map((_, i) => {
         const r = (t: number) => random(`${seed}-${i}-${t}`);
         const size = 40 + r(0) * 70;
         const startX = r(1) * (width + 200) - 100;
         const baseY = r(2) * height;
         const speed = 12 + r(3) * 22; // px/sec
         const drift = Math.sin((frame / fps) * 1.2 + r(4) * 6.28) * 60;
-
-        // slow upward float; still renders catch a nice snapshot
         const y = (baseY - (frame / fps) * speed) % (height + 120);
         const x = startX + drift;
-
         const o = 0.12 + r(5) * 0.15;
+
         return (
           <div
             key={i}
@@ -149,14 +163,109 @@ const Bokeh: React.FC<{ count: number; seed: string }> = ({ count, seed }) => {
   );
 };
 
-/** tiled anti-crop watermark overlay */
-const WatermarkTile: React.FC<{
-  text: string;
-  opacity?: number;
-  seed?: number;
-}> = ({ text, opacity = 0.18, seed = 0 }) => {
-  const { width, height } = useVideoConfig();
+/** Top garland with gentle sway */
+const Garland: React.FC<{ t: number; colors: [string, string, string] }> = ({ t, colors }) => {
+  const sway = Math.sin(t * 2.4) * 5;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: -8,
+        left: "50%",
+        width: "140%",
+        transform: `translateX(-50%) rotate(${sway}deg)`,
+        opacity: 0.26,
+        mixBlendMode: "multiply",
+      }}
+    >
+      <svg viewBox="0 0 1200 220" width="100%" aria-hidden>
+        <defs>
+          <linearGradient id="g-garland" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor={colors[0]} />
+            <stop offset="50%" stopColor={colors[1]} />
+            <stop offset="100%" stopColor={colors[2]} />
+          </linearGradient>
+        </defs>
+        <path
+          d="M0,100 C200,40 400,220 600,120 C800,20 1000,200 1200,120"
+          fill="none"
+          stroke="url(#g-garland)"
+          strokeWidth="8"
+          strokeLinecap="round"
+          opacity="0.8"
+        />
+        {Array.from({ length: 9 }).map((_, i) => {
+          const x = 60 + i * 120;
+          const y = i % 2 === 0 ? 140 : 110;
+          return <circle key={i} cx={x} cy={y} r="6" fill="url(#g-garland)" />;
+        })}
+      </svg>
+    </div>
+  );
+};
 
+/** Bottom rangoli shimmer */
+const Rangoli: React.FC<{ t: number; colors: [string, string, string] }> = ({ t, colors }) => {
+  const base = 1 + Math.sin(t * 2.2) * 0.04;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: "50%",
+        bottom: 50,
+        transform: `translateX(-50%) scale(${base})`,
+        opacity: 0.55,
+        filter: "blur(0.2px)",
+      }}
+    >
+      <svg width="220" height="220" viewBox="0 0 200 200" aria-hidden>
+        <defs>
+          <radialGradient id="rg1">
+            <stop offset="0%" stopColor={colors[0]} stopOpacity="1" />
+            <stop offset="100%" stopColor={colors[1]} stopOpacity="0.25" />
+          </radialGradient>
+          <radialGradient id="rg2">
+            <stop offset="0%" stopColor={colors[1]} stopOpacity="1" />
+            <stop offset="100%" stopColor={colors[2]} stopOpacity="0.25" />
+          </radialGradient>
+        </defs>
+        {Array.from({ length: 8 }).map((_, i) => {
+          const angle = (i * Math.PI) / 4;
+          const cx = 100 + Math.cos(angle) * 46;
+          const cy = 100 + Math.sin(angle) * 46;
+          return <circle key={i} cx={cx} cy={cy} r="18" fill={i % 2 ? "url(#rg1)" : "url(#rg2)"} />;
+        })}
+        <circle cx="100" cy="100" r="12" fill={colors[0]} />
+      </svg>
+    </div>
+  );
+};
+
+/** Ultra-subtle film grain for premium depth */
+const Grain: React.FC<{ opacity?: number }> = ({ opacity = 0.06 }) => (
+  <div
+    style={{
+      position: "absolute",
+      inset: 0,
+      opacity,
+      backgroundImage:
+        "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 40 40'><circle cx='1' cy='1' r='1' fill='black' opacity='0.7'/></svg>\")",
+      mixBlendMode: "multiply",
+      pointerEvents: "none",
+    }}
+  />
+);
+
+/* ============================================================================
+   Anti-crop watermarks
+============================================================================ */
+
+const WatermarkTile: React.FC<{ text: string; opacity?: number; seed?: number }> = ({
+  text,
+  opacity = 0.18,
+  seed = 0,
+}) => {
+  const { width, height } = useVideoConfig();
   const r = (k: number) => random(`wm-still-${seed}-${k}`);
   const stepX = 260;
   const stepY = 160;
@@ -166,7 +275,7 @@ const WatermarkTile: React.FC<{
   const cols = Math.ceil((width + stepX * 2) / stepX);
   const rows = Math.ceil((height + stepY * 2) / stepY);
 
-  const items: JSX.Element[] = [];
+  const items: React.ReactNode[] = [];
   for (let ry = -1; ry < rows; ry++) {
     for (let cx = -1; cx < cols; cx++) {
       const x = cx * stepX + xOffset;
@@ -198,62 +307,77 @@ const WatermarkTile: React.FC<{
   return <>{items}</>;
 };
 
-/* ---- Main still composition ------------------------------------------- */
+/* ============================================================================
+   Main Still Composition
+============================================================================ */
 
-export const ImageCard: React.FC<Props> = ({
-  title,
-  names,
-  date,
-  venue,
-  bg,
-  tier = "free",
-  watermark,
+export const ImageCard: React.FC<Props> = (props) => {
+  const {
+    title,
+    names,
+    date,
+    venue,
+    bg,
+    tier = "free",
+    watermark,
 
-  watermarkStrategy = "ribbon",
-  wmSeed = 0,
-  wmText = "Festival Invites — FREE PREVIEW",
-  wmOpacity = 0.18,
+    watermarkStrategy = "ribbon",
+    wmSeed = 0,
+    wmText = "Festival Invites — FREE PREVIEW",
+    wmOpacity = 0.18,
 
-  isWish = false,
-}) => {
+    isWish = false,
+    brand,
+    accent,
+  } = props;
+
   const frame = useCurrentFrame();
   const { fps, width, height, durationInFrames } = useVideoConfig();
   const intro = spring({ frame, fps, config: { damping: 200, mass: 0.9 } });
+  const t = frame / Math.max(1, fps);
 
+  // Theme hues
+  const colA = accent?.a ?? "#FFB74D"; // warm amber
+  const colB = accent?.b ?? "#F06292"; // pink
+  const colC = accent?.c ?? "#7C4DFF"; // violet
+
+  // Watermark logic
   const mustWatermark = tier === "free" || !!watermark;
   const showRibbon =
     mustWatermark && (watermarkStrategy === "ribbon" || watermarkStrategy === "ribbon+tile");
   const showTile =
     mustWatermark && (watermarkStrategy === "tile" || watermarkStrategy === "ribbon+tile");
+
   const bgSrc = resolve(bg);
 
-  // rotating conic glow for premium feel
+  // Conic aurora rotation
   const angle = interpolate(frame, [0, durationInFrames || 150], [0, 360], {
     easing: Easing.linear,
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp",
   });
 
-  // subtle Ken-Burns on background
+  // Ken Burns for background
   const kbScale = interpolate(frame, [0, 120], [1.06, 1.1], { extrapolateRight: "extend" });
 
-  // sheen sweep across the card
-  const sheenX = interpolate(frame % Math.round(fps * 2.2), [0, fps * 2.2], [-300, width + 300]);
+  // Title shimmer sweep
+  const shimmer = easeInOut(clamp01((Math.sin(t * 1.6) + 1) / 2));
+  const titleSize = titleSizeFor((title || "").length, height < 1000 ? 42 : 46);
 
   return (
-    <AbsoluteFill style={{ backgroundColor: "#070707" }}>
-      {/* conic ambient glow */}
+    <AbsoluteFill style={{ backgroundColor: "#070707", overflow: "hidden" }}>
+      {/* Aurora / ambient glow */}
       <div
         style={{
           position: "absolute",
           inset: "-18%",
-          background: `conic-gradient(from ${angle}deg, #FFB74D, #FF7043, #F06292, #7C4DFF, #FFB74D)`,
+          background: `conic-gradient(from ${angle}deg, ${colA}, ${colB}, ${colC}, ${colA})`,
           filter: "blur(60px) saturate(1.1)",
           opacity: 0.55,
         }}
       />
 
-      {/* background image (or gradient) */}
+      {/* Background image */}
       {bgSrc ? (
         <Img
           src={bgSrc}
@@ -272,16 +396,18 @@ export const ImageCard: React.FC<Props> = ({
           style={{
             position: "absolute",
             inset: 0,
-            background: "linear-gradient(135deg,#FFB74D 0%,#FF7043 45%,#F06292 100%)",
+            background: `linear-gradient(135deg, ${colA} 0%, ${colB} 45%, ${colC} 100%)`,
           }}
         />
       )}
 
-      {/* atmosphere */}
+      {/* Festive atmosphere */}
       <Bokeh count={22} seed="bokeh-still" />
       <Sparkles count={16} seed="sparkles-still" />
+      <Garland t={t} colors={[colA, colB, colC]} />
+      <Rangoli t={t} colors={[colA, colB, colC]} />
 
-      {/* legibility veil */}
+      {/* Legibility veil */}
       <div
         style={{
           position: "absolute",
@@ -291,25 +417,19 @@ export const ImageCard: React.FC<Props> = ({
         }}
       />
 
-      /* ------------------------------------------------------------------ */
-      /*  ⚡ Minimal luxe overlay – title-first, no big box                 */
-      /* ------------------------------------------------------------------ */
-
+      {/* ===== Lux Title Block (glass chip with gradient stroke) ===== */}
       <div
-        /* parent wrapper purely for a thin gradient stroke */
         style={{
           position: "absolute",
           left: "50%",
-          bottom: "14%",                 // sit in lower third
+          bottom: "14%",
           transform: `translateX(-50%) scale(${0.94 + intro * 0.06})`,
           padding: 2,
           borderRadius: 28,
-          background:
-            "linear-gradient(135deg,#FFD36E 0%,#FF9A5A 18%,#FF67B0 50%,#8B6CFF 82%,#FFD36E 100%)",
+          background: `linear-gradient(135deg, ${colA} 0%, ${colB} 45%, ${colC} 100%)`,
           boxShadow: "0 16px 60px rgba(0,0,0,0.35)",
         }}
       >
-        {/* frosted-glass overlay – the only visible “box” now */}
         <div
           style={{
             borderRadius: 26,
@@ -321,29 +441,39 @@ export const ImageCard: React.FC<Props> = ({
             textAlign: "center",
             color: "#fff",
             pointerEvents: "none",
-            opacity: intro,               // nice spring entrance
+            opacity: intro,
           }}
         >
-          {/* ===== Title ===== */}
-          <h1
+          {/* Title with animated shimmer mask */}
+          <div
             style={{
-              margin: 0,
-              fontSize: 42,
-              lineHeight: 1.1,
-              letterSpacing: 0.25,
-              fontWeight: 800,
-              textShadow: "0 2px 18px rgba(0,0,0,0.45)",
+              display: "inline-block",
+              position: "relative",
+              padding: "0 2px",
               background:
-                "linear-gradient(135deg,#ffffff 0%,#ffe8c6 45%,#ffd6ff 80%)",
+                "linear-gradient(135deg, #ffffff 0%, #fff2cf 35%, #ffd6ff 70%, #ffffff 100%)",
               WebkitBackgroundClip: "text",
               backgroundClip: "text",
               color: "transparent",
+              textShadow: "0 2px 18px rgba(0,0,0,0.45)",
+              fontWeight: 800,
+              fontSize: titleSize,
+              lineHeight: 1.1,
+              letterSpacing: 0.25,
+              maskImage:
+                "linear-gradient(120deg, rgba(0,0,0,0.10) 40%, rgba(0,0,0,1) 50%, rgba(0,0,0,0.10) 60%)",
+              WebkitMaskImage:
+                "linear-gradient(120deg, rgba(0,0,0,0.10) 40%, rgba(0,0,0,1) 50%, rgba(0,0,0,0.10) 60%)",
+              maskPosition: `${-60 + 120 * shimmer}% 0%`,
+              WebkitMaskPosition: `${-60 + 120 * shimmer}% 0%`,
+              maskSize: "200% 100%",
+              WebkitMaskSize: "200% 100%",
             }}
           >
             {title}
-          </h1>
+          </div>
 
-          {/* ===== Names + details (skipped for wishes) ===== */}
+          {/* Names + details (skip for wish) */}
           {!isWish && (
             <div
               style={{
@@ -358,6 +488,7 @@ export const ImageCard: React.FC<Props> = ({
                 border: "1px solid rgba(255,255,255,0.22)",
                 fontWeight: 600,
                 fontSize: 18,
+                textShadow: "0 1px 6px rgba(0,0,0,0.35)",
               }}
             >
               <span>{names}</span>
@@ -371,7 +502,7 @@ export const ImageCard: React.FC<Props> = ({
                       background: "rgba(255,255,255,0.7)",
                     }}
                   />
-                  <span style={{ opacity: 0.9 }}>
+                  <span style={{ opacity: 0.92 }}>
                     {date}
                     {venue ? ` · ${venue}` : ""}
                   </span>
@@ -382,10 +513,41 @@ export const ImageCard: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* tiled watermark (FREE / forced watermark) */}
+      {/* Brand ribbon (top-right) */}
+      {brand?.ribbon && (brand?.logoUrl || brand?.name) && (
+        <div
+          style={{
+            position: "absolute",
+            top: 24,
+            right: 24,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            background: brand?.primary || "#111827",
+            color: "white",
+            padding: "10px 14px",
+            borderRadius: 12,
+            boxShadow: "0 10px 30px rgba(0,0,0,.25)",
+            border: `1px solid ${brand?.secondary || "rgba(255,255,255,0.25)"}`,
+          }}
+        >
+          {brand?.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={brand.logoUrl}
+              alt="logo"
+              width={28}
+              height={28}
+              style={{ borderRadius: 6, objectFit: "cover" }}
+            />
+          ) : null}
+          <div style={{ fontWeight: 700 }}>{brand?.name}</div>
+        </div>
+      )}
+
+      {/* Anti-crop watermarks */}
       {showTile && <WatermarkTile text={wmText} opacity={wmOpacity} seed={wmSeed} />}
 
-      {/* watermark ribbon on FREE (if strategy includes ribbon) */}
       {showRibbon && (
         <div
           style={{
@@ -421,6 +583,9 @@ export const ImageCard: React.FC<Props> = ({
           </span>
         </div>
       )}
+
+      {/* Grain on top for a premium finish */}
+      <Grain opacity={0.05} />
     </AbsoluteFill>
   );
 };

@@ -1,0 +1,12 @@
+[
+  {"slug":"diwali","name":"Diwali","date_iso":"2025-10-20","region":"IN","tags":["lights","family"],"featured":true,"hero_image":"/assets/backgrounds/diwali.jpg"},
+  {"slug":"chhath-puja","name":"Chhath Puja","date_iso":"2025-10-26","region":"IN-BR","tags":["sun","ritual"],"featured":true,"hero_image":"/assets/backgrounds/chhath.jpg"},
+  {"slug":"guru-nanak-jayanti","name":"Guru Nanak Jayanti","date_iso":"2025-11-05","region":"IN","tags":["sikh"],"hero_image":"/assets/backgrounds/gurunanak.jpg"},
+  {"slug":"children-day","name":"Children’s Day","date_iso":"2025-11-14","region":"IN","tags":["youth"], "hero_image":"/assets/backgrounds/children.jpg"},
+  {"slug":"christmas","name":"Christmas","date_iso":"2025-12-25","region":"IN","tags":["christian"],"featured":true,"hero_image":"/assets/backgrounds/christmas.jpg"},
+  {"slug":"new-year","name":"New Year","date_iso":"2026-01-01","region":"IN","tags":["global"],"featured":true,"hero_image":"/assets/backgrounds/new-year.jpg"},
+  {"slug":"lohri","name":"Lohri","date_iso":"2026-01-13","region":"IN-PB","tags":["punjab"],"hero_image":"/assets/backgrounds/lohri.jpg"},
+  {"slug":"makar-sankranti","name":"Makar Sankranti","date_iso":"2026-01-14","region":"IN","tags":["harvest"],"hero_image":"/assets/backgrounds/makar-sankranti.jpg"},
+  {"slug":"pongal","name":"Pongal","date_iso":"2026-01-14","region":"IN-TN","tags":["tamil-nadu"],"hero_image":"/assets/backgrounds/pongal.jpg"},
+  {"slug":"republic-day","name":"Republic Day","date_iso":"2026-01-26","region":"IN","tags":["national"],"hero_image":"/assets/backgrounds/republic.jpg"}
+]

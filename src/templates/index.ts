@@ -5,8 +5,8 @@ export type TemplateMeta = {
   title: string;
   slug: string;
   languages: Language[];
-  accent: string;     // Tailwind gradient classes, e.g. "from-orange-400 via-rose-400 to-fuchsia-500"
-  thumbnail: string;  // /assets/thumbnails/<slug>.jpg
+  accent: string; // Tailwind gradient classes, e.g. "from-orange-400 via-rose-400 to-fuchsia-500"
+  thumbnail: string; // /assets/thumbnails/<slug>.jpg
   tags: string[];
   kind: "invite" | "wish"; // NEW: differentiate festival invites vs daily wishes
 };
@@ -276,5 +276,45 @@ export const templates: TemplateMeta[] = [
     thumbnail: "/assets/thumbnails/thank-you.jpg",
     tags: ["wish", "gratitude"],
     kind: "wish",
+  },
+  {
+    id: "durga-puja",
+    title: "Durga Puja",
+    slug: "durga-puja",
+    languages: ["en", "hi", "hinglish"],
+    accent: "from-rose-600 via-red-500 to-amber-500",
+    thumbnail: "/assets/thumbnails/durga-puja.jpg",
+    tags: ["festival", "bengal", "dhak"],
+    kind: "invite",
+  },
+  {
+    id: "chhath",
+    title: "Chhath Puja",
+    slug: "chhath",
+    languages: ["en", "hi", "hinglish"],
+    accent: "from-amber-500 via-emerald-500 to-cyan-500",
+    thumbnail: "/assets/thumbnails/chhath.jpg",
+    tags: ["festival", "devotional", "sun"],
+    kind: "invite",
+  },
+  {
+    id: "baisakhi",
+    title: "Baisakhi",
+    slug: "baisakhi",
+    languages: ["en", "hi", "hinglish"],
+    accent: "from-yellow-400 via-amber-500 to-orange-500",
+    thumbnail: "/assets/thumbnails/baisakhi.jpg",
+    tags: ["festival", "punjabi", "harvest"],
+    kind: "invite",
+  },
+  {
+    id: "vishu",
+    title: "Vishu",
+    slug: "vishu",
+    languages: ["en", "hi", "hinglish"],
+    accent: "from-amber-400 via-yellow-500 to-green-500",
+    thumbnail: "/assets/thumbnails/vishu.jpg",
+    tags: ["festival", "kerala", "new-year"],
+    kind: "invite",
   },
 ];
