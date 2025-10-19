@@ -1,0 +1,1 @@
+"use client"; import dynamic from "next/dynamic"; export default dynamic(() => import("../RSVPForm"), { ssr: false, loading: () => null });

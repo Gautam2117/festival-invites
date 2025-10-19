@@ -5,27 +5,37 @@ import type { Invite } from "@/types/invite";
 import dynamic from "next/dynamic";
 import ShareBar from "@/components/ShareBar";
 
+import PublicCaptions from "@/components/lazy/CaptionsPanel.nossr"; 
+import SocialPreviewStudio from "@/components/lazy/SocialPreviewStudio.nossr"; 
+import InviteAnalytics from "@/components/lazy/InviteAnalytics.nossr";
+
+import WishForm from "@/components/lazy/WishForm.nossr"; 
+import WishList from "@/components/lazy/WishList.nossr"; 
+import WishMontageButton from "@/components/lazy/WishMontageButton.nossr"; 
+import RSVPForm from "@/components/lazy/RSVPForm.nossr"; 
+import RSVPStats from "@/components/lazy/RSVPStats.nossr";
+
 /* Client bits (kept as dynamic to avoid turning this file into a client component) */
-const WishForm = dynamic(() => import("@/components/WishForm"), { ssr: false });
-const WishList = dynamic(() => import("@/components/WishList"), { ssr: false });
-const WishMontageButton = dynamic(
-  () => import("@/components/WishMontageButton"),
-  { ssr: false }
-);
-const RSVPForm = dynamic(() => import("@/components/RSVPForm"), { ssr: false });
-const RSVPStats = dynamic(() => import("@/components/RSVPStats"), {
-  ssr: false,
-});
-const PublicCaptions = dynamic(() => import("@/components/CaptionsPanel"), {
-  ssr: false,
-});
-const SocialPreviewStudio = dynamic(
-  () => import("@/components/SocialPreviewStudio"),
-  { ssr: false }
-);
-const InviteAnalytics = dynamic(() => import("@/components/InviteAnalytics"), {
-  ssr: false,
-});
+// const WishForm = dynamic(() => import("@/components/WishForm"), { ssr: false });
+// const WishList = dynamic(() => import("@/components/WishList"), { ssr: false });
+// const WishMontageButton = dynamic(
+//   () => import("@/components/WishMontageButton"),
+//   { ssr: false }
+// );
+// const RSVPForm = dynamic(() => import("@/components/RSVPForm"), { ssr: false });
+// const RSVPStats = dynamic(() => import("@/components/RSVPStats"), {
+//   ssr: false,
+// });
+// const PublicCaptions = dynamic(() => import("@/components/CaptionsPanel"), {
+//   ssr: false,
+// });
+// const SocialPreviewStudio = dynamic(
+//   () => import("@/components/SocialPreviewStudio"),
+//   { ssr: false }
+// );
+// const InviteAnalytics = dynamic(() => import("@/components/InviteAnalytics"), {
+//   ssr: false,
+// });
 
 /* --------------------------------------------- */
 /* Data fetch (shared by page + metadata)        */
