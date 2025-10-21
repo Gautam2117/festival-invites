@@ -68,7 +68,7 @@ function Card(p: CardProps) {
     <Link
       href={href}
       aria-label={`Create invite for ${p.name} on ${when}`}
-      prefetch
+      prefetch={false}
       className="group block"
     >
       <motion.div

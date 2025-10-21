@@ -5,9 +5,9 @@ import { Menu } from "lucide-react";
 import HomeHero from "@/components/HomeHero";
 import TemplateGrid from "@/components/TemplateGrid";
 import FestivalRail from "@/components/FestivalRail";
+import Year from "@/components/Year";
 
 export default function Home() {
-  const year = new Date().getFullYear();
 
   return (
     <main className="relative">
@@ -49,7 +49,7 @@ export default function Home() {
             <Link href="/about" className="hover:text-ink-900">
               About
             </Link>
-            <Link href="/builder" className="btn" aria-label="Start building your invite">
+            <Link href="/builder" prefetch={false} className="btn" aria-label="Start building your invite">
               Start Building
             </Link>
           </nav>
@@ -73,6 +73,7 @@ export default function Home() {
                 </Link>
                 <Link
                   href="/builder"
+                  prefetch={false}
                   className="btn mt-1 inline-flex w-max"
                   aria-label="Start building your invite"
                 >
@@ -126,7 +127,7 @@ export default function Home() {
         <div className="rounded-2xl border border-white/70 bg-white/90 p-2 shadow-md backdrop-blur">
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm text-ink-800">Create a festive invite</span>
-            <Link href="/builder" className="btn" aria-label="Create an invite now">
+            <Link href="/builder" prefetch={false} className="btn" aria-label="Create an invite now">
               Create now
             </Link>
           </div>
@@ -136,9 +137,9 @@ export default function Home() {
       {/* Footer */}
       <footer className="relative border-t border-white/60 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-sm text-ink-700 sm:flex-row">
-          <p>© {year} Festival Invites. All rights reserved.</p>
+          <p>© <Year /> Festival Invites. All rights reserved.</p>
           <div className="flex items-center gap-4">
-            <Link href="/builder" className="btn" aria-label="Create an invite now">
+            <Link href="/builder" prefetch={false} className="btn" aria-label="Create an invite now">
               Create now
             </Link>
             <Link href="#templates" className="underline">

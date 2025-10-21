@@ -5,7 +5,8 @@
 "use client";
 export const dynamic = "force-dynamic";
 
-import Script from "next/script";
+import { loadRazorpay } from "@/lib/loadRazorpay";
+
 import {
   Suspense,
   useCallback,
@@ -70,7 +71,7 @@ function Card(props: PropsWithChildren<{ className?: string }>) {
   return (
     <div
       className={
-        "rounded-2xl border border-white/60 bg-white/85 backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] " +
+        "rounded-2xl border border-white/60 bg-white/85 md:backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] " +
         (props.className || "")
       }
     >
@@ -95,7 +96,7 @@ function Section({
     <details
       id={id}
       open={defaultOpen}
-      className="group rounded-2xl border border-white/60 bg-white/85 backdrop-blur-xl"
+      className="group rounded-2xl border border-white/60 bg-white/90 md:backdrop-blur-xl"
     >
       <summary className="list-none select-none cursor-pointer px-5 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -528,6 +529,8 @@ function BuilderPageInner() {
   /* --------------------------------------------- */
   async function handlePayAndExport() {
     try {
+      await loadRazorpay();
+      setRzReady(true);
       if (!window.Razorpay)
         throw new Error("Payment is loading. Please try again in a moment.");
 
@@ -598,301 +601,311 @@ function BuilderPageInner() {
   }
 
   async function doExportLambda(preset: ExportPreset) {
-  try {
-    // UI state
-    setLastPreset(preset);
-    setExportingWhich(preset === "free" || preset === "hd" ? preset : "free");
-    setDownloadUrl(null);
-    setPublicUrl(null);
-    setRenderPct(0);
-    setEtaText(null);
+    try {
+      // UI state
+      setLastPreset(preset);
+      setExportingWhich(preset === "free" || preset === "hd" ? preset : "free");
+      setDownloadUrl(null);
+      setPublicUrl(null);
+      setRenderPct(0);
+      setEtaText(null);
 
-    // Composition selection
-    const isVideoComposition = preset === "gif" ? true : isVideo;
-    const compositionId: "festival-intro" | "image-card" =
-      isVideoComposition ? "festival-intro" : "image-card";
+      // Composition selection
+      const isVideoComposition = preset === "gif" ? true : isVideo;
+      const compositionId: "festival-intro" | "image-card" = isVideoComposition
+        ? "festival-intro"
+        : "image-card";
 
-    // Endpoint selection
-    const endpoint =
-      preset === "gif"
-        ? "/api/lambda/gif"
-        : preset === "status"
-        ? "/api/lambda/status"
-        : isVideoComposition
-        ? "/api/lambda/queue"
-        : "/api/lambda/still";
+      // Endpoint selection
+      const endpoint =
+        preset === "gif"
+          ? "/api/lambda/gif"
+          : preset === "status"
+          ? "/api/lambda/status"
+          : isVideoComposition
+          ? "/api/lambda/queue"
+          : "/api/lambda/still";
 
-    // Encoding presets
-    const encoding =
-      preset === "status"
-        ? {
-            width: 720,
-            height: 1280,
-            fps: 30,
-            videoBitrateKbps: 2600,
-            audioBitrateKbps: 96,
-            maxDurationSeconds: 30,
-          }
-        : preset === "gif"
-        ? {
-            width: 540,
-            height: 960,
-            fps: 12,
-            durationSeconds: 3.5,
-          }
-        : undefined;
-
-    // Status "Lite" toggle (smaller MP4)
-    const liteClicked =
-      (document?.activeElement as HTMLElement | null)?.dataset?.lite === "1";
-    if (preset === "status" && liteClicked && encoding) {
-      encoding.videoBitrateKbps = 1600;
-      encoding.audioBitrateKbps = 64;
-    }
-
-    // Tier / watermark
-    const isHd = preset === "hd";
-    const tier = isHd ? "hd" : "free";
-    const showWatermark = !isHd;
-    const watermarkId = `wm_${Math.random().toString(36).slice(2, 8)}`;
-
-    const inputProps: any = {
-      title,
-      names,
-      date,
-      venue,
-      bg: bgForPlayer,
-      music: musicForPlayer,
-      musicVolume,
-      tier,
-      watermark: showWatermark,
-      watermarkStrategy: showWatermark ? wmStrategy : "ribbon",
-      wmSeed,
-      wmText,
-      wmOpacity,
-      isWish,
-      watermarkId,
-      brand: {
-        id: brandId || undefined,
-        name: brandName || undefined,
-        logoUrl: brandLogo || undefined,
-        tagline: brandTagline || undefined,
-        primary: brandPrimary || undefined,
-        secondary: brandSecondary || undefined,
-        ribbon: brandRibbon,
-        endCard: brandEndCard,
-      },
-    };
-
-    // Build payload
-    const payload: any = { compositionId, quality: preset, inputProps, encoding };
-
-    // Still options for image composition (non-GIF)
-    if (compositionId === "image-card" && preset !== "gif") {
-      payload.frame = 60;
-      payload.format = "png";
-    }
-
-    // Queue the render
-    const queued = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    }).then((r) => r.json());
-
-    if (!queued?.renderId || !queued?.bucketName) {
-      throw new Error(queued?.error || "Queue error");
-    }
-
-    // --- Output key handling (no 'renders/' prefix!) ---
-    const extFromPreset =
-      preset === "gif"
-        ? "gif"
-        : isVideoComposition
-        ? "mp4"
-        : (payload.format as "png" | "jpeg");
-
-    // Start with server-provided outKey, else default to <renderId>/out.<ext>
-    let currentOutKey: string =
-      queued?.outKey || `${queued.renderId}/out.${extFromPreset}`;
-
-    // Helper to (re)presign URL for the current key
-    async function presignFor(currentKey: string) {
-      const ext = currentKey.split(".").pop()!;
-      const res = await fetch(
-        `/api/lambda/file?bucketName=${queued.bucketName}&outKey=${encodeURIComponent(
-          currentKey
-        )}&ext=${ext}`,
-        { cache: "no-store" }
-      ).then((r) => r.json());
-      if (!res?.url) throw new Error("Failed to presign output URL");
-      return { url: res.url as string, ext };
-    }
-
-    let { url: signedUrl, ext: extFromKey } = await presignFor(currentOutKey);
-
-    // Poll for completion
-    let finalUrl: string | null = null;
-    const isLongRender =
-      isVideoComposition || preset === "gif" || preset === "status";
-    const deadline = Date.now() + (isLongRender ? 180_000 : 60_000);
-    let delay = 900;
-
-    if (isLongRender) {
-      // video / gif: use progress endpoint
-      while (Date.now() < deadline) {
-        try {
-          const res = await fetch(
-            `/api/lambda/progress?renderId=${queued.renderId}&bucketName=${
-              queued.bucketName
-            }&functionName=${encodeURIComponent(queued.functionName)}`,
-            { cache: "no-store" }
-          );
-
-          if (res.status === 429) {
-            await new Promise((r) => setTimeout(r, delay));
-            delay = Math.min(delay * 1.6, 8000);
-            continue;
-          }
-
-          const prog = await res.json();
-
-          // Live progress UI
-          if (
-            typeof prog?.framesRendered === "number" &&
-            typeof prog?.totalFrames === "number" &&
-            prog.totalFrames > 0
-          ) {
-            const pct = Math.floor((prog.framesRendered / prog.totalFrames) * 100);
-            setRenderPct(pct);
-            if (prog.timeToFinishInMilliseconds) {
-              const ms = prog.timeToFinishInMilliseconds;
-              const mins = Math.floor(ms / 60000);
-              const secs = Math.round((ms % 60000) / 1000);
-              setEtaText(mins > 0 ? `${mins}m ${secs}s` : `${secs}s`);
+      // Encoding presets
+      const encoding =
+        preset === "status"
+          ? {
+              width: 720,
+              height: 1280,
+              fps: 30,
+              videoBitrateKbps: 2600,
+              audioBitrateKbps: 96,
+              maxDurationSeconds: 30,
             }
-          }
+          : preset === "gif"
+          ? {
+              width: 540,
+              height: 960,
+              fps: 12,
+              durationSeconds: 3.5,
+            }
+          : undefined;
 
-          // If backend reveals a different final key, switch to it and re-presign
-          if (prog?.outKey && prog.outKey !== currentOutKey) {
-            currentOutKey = prog.outKey;
-            const p = await presignFor(currentOutKey);
-            signedUrl = p.url;
-            extFromKey = p.ext;
-          }
+      // Status "Lite" toggle (smaller MP4)
+      const liteClicked =
+        (document?.activeElement as HTMLElement | null)?.dataset?.lite === "1";
+      if (preset === "status" && liteClicked && encoding) {
+        encoding.videoBitrateKbps = 1600;
+        encoding.audioBitrateKbps = 64;
+      }
 
-          if (typeof prog?.error === "string") {
-            if (prog.error.includes("Rate Exceeded")) {
+      // Tier / watermark
+      const isHd = preset === "hd";
+      const tier = isHd ? "hd" : "free";
+      const showWatermark = !isHd;
+      const watermarkId = `wm_${Math.random().toString(36).slice(2, 8)}`;
+
+      const inputProps: any = {
+        title,
+        names,
+        date,
+        venue,
+        bg: bgForPlayer,
+        music: musicForPlayer,
+        musicVolume,
+        tier,
+        watermark: showWatermark,
+        watermarkStrategy: showWatermark ? wmStrategy : "ribbon",
+        wmSeed,
+        wmText,
+        wmOpacity,
+        isWish,
+        watermarkId,
+        brand: {
+          id: brandId || undefined,
+          name: brandName || undefined,
+          logoUrl: brandLogo || undefined,
+          tagline: brandTagline || undefined,
+          primary: brandPrimary || undefined,
+          secondary: brandSecondary || undefined,
+          ribbon: brandRibbon,
+          endCard: brandEndCard,
+        },
+      };
+
+      // Build payload
+      const payload: any = {
+        compositionId,
+        quality: preset,
+        inputProps,
+        encoding,
+      };
+
+      // Still options for image composition (non-GIF)
+      if (compositionId === "image-card" && preset !== "gif") {
+        payload.frame = 60;
+        payload.format = "png";
+      }
+
+      // Queue the render
+      const queued = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+      }).then((r) => r.json());
+
+      if (!queued?.renderId || !queued?.bucketName) {
+        throw new Error(queued?.error || "Queue error");
+      }
+
+      // --- Output key handling (no 'renders/' prefix!) ---
+      const extFromPreset =
+        preset === "gif"
+          ? "gif"
+          : isVideoComposition
+          ? "mp4"
+          : (payload.format as "png" | "jpeg");
+
+      // Start with server-provided outKey, else default to <renderId>/out.<ext>
+      let currentOutKey: string =
+        queued?.outKey || `${queued.renderId}/out.${extFromPreset}`;
+
+      // Helper to (re)presign URL for the current key
+      async function presignFor(currentKey: string) {
+        const ext = currentKey.split(".").pop()!;
+        const res = await fetch(
+          `/api/lambda/file?bucketName=${
+            queued.bucketName
+          }&outKey=${encodeURIComponent(currentKey)}&ext=${ext}`,
+          { cache: "no-store" }
+        ).then((r) => r.json());
+        if (!res?.url) throw new Error("Failed to presign output URL");
+        return { url: res.url as string, ext };
+      }
+
+      let { url: signedUrl, ext: extFromKey } = await presignFor(currentOutKey);
+
+      // Poll for completion
+      let finalUrl: string | null = null;
+      const isLongRender =
+        isVideoComposition || preset === "gif" || preset === "status";
+      const deadline = Date.now() + (isLongRender ? 180_000 : 60_000);
+      let delay = 900;
+
+      if (isLongRender) {
+        // video / gif: use progress endpoint
+        while (Date.now() < deadline) {
+          try {
+            const res = await fetch(
+              `/api/lambda/progress?renderId=${queued.renderId}&bucketName=${
+                queued.bucketName
+              }&functionName=${encodeURIComponent(queued.functionName)}`,
+              { cache: "no-store" }
+            );
+
+            if (res.status === 429) {
               await new Promise((r) => setTimeout(r, delay));
               delay = Math.min(delay * 1.6, 8000);
               continue;
             }
-            throw new Error(prog.error);
+
+            const prog = await res.json();
+
+            // Live progress UI
+            if (
+              typeof prog?.framesRendered === "number" &&
+              typeof prog?.totalFrames === "number" &&
+              prog.totalFrames > 0
+            ) {
+              const pct = Math.floor(
+                (prog.framesRendered / prog.totalFrames) * 100
+              );
+              setRenderPct(pct);
+              if (prog.timeToFinishInMilliseconds) {
+                const ms = prog.timeToFinishInMilliseconds;
+                const mins = Math.floor(ms / 60000);
+                const secs = Math.round((ms % 60000) / 1000);
+                setEtaText(mins > 0 ? `${mins}m ${secs}s` : `${secs}s`);
+              }
+            }
+
+            // If backend reveals a different final key, switch to it and re-presign
+            if (prog?.outKey && prog.outKey !== currentOutKey) {
+              currentOutKey = prog.outKey;
+              const p = await presignFor(currentOutKey);
+              signedUrl = p.url;
+              extFromKey = p.ext;
+            }
+
+            if (typeof prog?.error === "string") {
+              if (prog.error.includes("Rate Exceeded")) {
+                await new Promise((r) => setTimeout(r, delay));
+                delay = Math.min(delay * 1.6, 8000);
+                continue;
+              }
+              throw new Error(prog.error);
+            }
+            if (Array.isArray(prog?.errors) && prog.errors.length) {
+              throw new Error(prog.errors[0]?.message || "Render failed");
+            }
+            if (prog?.done) {
+              finalUrl = signedUrl;
+              break;
+            }
+          } catch {
+            // transient errors: keep polling
           }
-          if (Array.isArray(prog?.errors) && prog.errors.length) {
-            throw new Error(prog.errors[0]?.message || "Render failed");
-          }
-          if (prog?.done) {
+          await new Promise((r) => setTimeout(r, delay));
+          delay = Math.min(delay * 1.25 + Math.random() * 200, 3000);
+        }
+      } else {
+        // still: probe S3 for the current key
+        while (Date.now() < deadline) {
+          const probe = await fetch(
+            `/api/lambda/probe?bucketName=${
+              queued.bucketName
+            }&outKey=${encodeURIComponent(currentOutKey)}`,
+            { cache: "no-store" }
+          ).then((r) => r.json());
+          if (probe?.exists) {
             finalUrl = signedUrl;
             break;
           }
-        } catch {
-          // transient errors: keep polling
+          await new Promise((r) => setTimeout(r, delay));
+          delay = Math.min(delay * 1.4, 5000);
         }
-        await new Promise((r) => setTimeout(r, delay));
-        delay = Math.min(delay * 1.25 + Math.random() * 200, 3000);
       }
-    } else {
-      // still: probe S3 for the current key
-      while (Date.now() < deadline) {
-        const probe = await fetch(
-          `/api/lambda/probe?bucketName=${queued.bucketName}&outKey=${encodeURIComponent(
-            currentOutKey
-          )}`,
-          { cache: "no-store" }
-        ).then((r) => r.json());
-        if (probe?.exists) {
-          finalUrl = signedUrl;
-          break;
-        }
-        await new Promise((r) => setTimeout(r, delay));
-        delay = Math.min(delay * 1.4, 5000);
-      }
-    }
 
-    if (!finalUrl) throw new Error("Timed out waiting for render to finish");
+      if (!finalUrl) throw new Error("Timed out waiting for render to finish");
 
-    const filename =
-      extFromKey === "gif"
-        ? "invite.gif"
-        : isVideoComposition
-        ? "invite.mp4"
-        : "invite.png";
+      const filename =
+        extFromKey === "gif"
+          ? "invite.gif"
+          : isVideoComposition
+          ? "invite.mp4"
+          : "invite.png";
 
-    setDownloadUrl(finalUrl);
-    setDownloadName(filename);
-    downloadFromUrl(finalUrl, filename);
+      setDownloadUrl(finalUrl);
+      setDownloadName(filename);
+      downloadFromUrl(finalUrl, filename);
 
-    // Create / upsert public link (non-blocking)
-    try {
-      const selectedFestivalSlug = selectedFestival || template;
-      const builderTitle = title;
-      const builderSubtitle = names || "";
-      const previewStillUrl =
-        compositionId === "image-card" && extFromKey !== "gif" ? finalUrl : undefined;
+      // Create / upsert public link (non-blocking)
+      try {
+        const selectedFestivalSlug = selectedFestival || template;
+        const builderTitle = title;
+        const builderSubtitle = names || "";
+        const previewStillUrl =
+          compositionId === "image-card" && extFromKey !== "gif"
+            ? finalUrl
+            : undefined;
 
-      const res = await fetch("/api/invites", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slug: selectedFestivalSlug,
-          title: builderTitle,
-          subtitle: builderSubtitle,
-          mediaUrl: finalUrl,
-          ogImageUrl: previewStillUrl,
-          theme: template,
-          locale: language,
-          owner: { name: ownerName || undefined, org: ownerOrg || null },
-          props: {
-            title,
-            names,
-            date,
-            venue,
-            bg: bgForPlayer,
-            music: !!musicForPlayer,
-            brand: {
-              id: brandId || undefined,
-              name: brandName || undefined,
-              logoUrl: brandLogo || undefined,
-              tagline: brandTagline || undefined,
-              primary: brandPrimary || undefined,
-              secondary: brandSecondary || undefined,
-              ribbon: brandRibbon,
-              endCard: brandEndCard,
+        const res = await fetch("/api/invites", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            slug: selectedFestivalSlug,
+            title: builderTitle,
+            subtitle: builderSubtitle,
+            mediaUrl: finalUrl,
+            ogImageUrl: previewStillUrl,
+            theme: template,
+            locale: language,
+            owner: { name: ownerName || undefined, org: ownerOrg || null },
+            props: {
+              title,
+              names,
+              date,
+              venue,
+              bg: bgForPlayer,
+              music: !!musicForPlayer,
+              brand: {
+                id: brandId || undefined,
+                name: brandName || undefined,
+                logoUrl: brandLogo || undefined,
+                tagline: brandTagline || undefined,
+                primary: brandPrimary || undefined,
+                secondary: brandSecondary || undefined,
+                ribbon: brandRibbon,
+                endCard: brandEndCard,
+              },
             },
-          },
-          wishesEnabled: true,
-        }),
-        cache: "no-store",
-      });
-      const data = await res.json();
-      if (data?.url) {
-        setPublicUrl(data.url);
-        navigate(data.url);
+            wishesEnabled: true,
+          }),
+          cache: "no-store",
+        });
+        const data = await res.json();
+        if (data?.url) {
+          setPublicUrl(data.url);
+          navigate(data.url);
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
+    } catch (e: any) {
+      console.error("EXPORT ERROR", e);
+      alert(e?.message || "Export error");
+    } finally {
+      setExportingWhich(null);
+      setRenderPct(null);
+      setEtaText(null);
     }
-  } catch (e: any) {
-    console.error("EXPORT ERROR", e);
-    alert(e?.message || "Export error");
-  } finally {
-    setExportingWhich(null);
-    setRenderPct(null);
-    setEtaText(null);
   }
-}
 
   const labels = copy[language].labels;
   const tierPreview: "free" | "hd" = paid ? "hd" : "free";
@@ -904,12 +917,6 @@ function BuilderPageInner() {
     <>
       <DecorativeBG />
 
-      <Script
-        src="https://checkout.razorpay.com/v1/checkout.js"
-        strategy="afterInteractive"
-        onLoad={() => setRzReady(true)}
-      />
-
       {/* Download toast */}
       {downloadUrl && (
         <motion.div
@@ -919,7 +926,7 @@ function BuilderPageInner() {
           role="status"
           aria-live="polite"
         >
-          <div className="max-w-3xl w-full rounded-2xl border border-white/50 bg-white/90 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="max-w-3xl w-full rounded-2xl border border-white/50 bg-white/90 md:backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] p-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="grid place-items-center h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-400 to-lime-400 text-white shadow">
                 <CheckCircle2 className="h-5 w-5" />
@@ -988,7 +995,7 @@ function BuilderPageInner() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/80 px-3 py-1 text-sm shadow-sm backdrop-blur">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/90 px-3 py-1 text-sm shadow-sm md:backdrop-blur">
             <Sparkles className="h-4 w-4 text-brand-600" />
             <span className="font-medium text-ink-700">
               Festive invite builder
@@ -1870,7 +1877,7 @@ function BuilderPageInner() {
       </main>
 
       {/* Mobile action bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-xl border-t border-white/60 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] px-3 py-2 sm:hidden">
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-white/60 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] px-3 py-2 sm:hidden">
         <div className="flex items-center justify-between gap-2">
           <button
             onClick={() => doExportLambda("free")}

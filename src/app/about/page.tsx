@@ -515,6 +515,7 @@ export default function AboutPage() {
             >
               <Link
                 href="/builder"
+                prefetch={false}
                 className="inline-flex items-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow hover:opacity-95"
               >
                 <Wand2 className="mr-2 h-4 w-4" />
@@ -682,6 +683,7 @@ export default function AboutPage() {
               <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
                 <Link
                   href="/builder"
+                  prefetch={false}
                   className="inline-flex items-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow hover:opacity-95"
                 >
                   <Wand2 className="mr-2 h-4 w-4" />

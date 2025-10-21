@@ -1,12 +1,30 @@
+// src/types/razorpay.d.ts
 export {};
 
 declare global {
   interface Window {
-    // Keep it optional so it doesn't clash if another file declares it as optional.
-    // If you *already* have a declaration elsewhere, delete that and keep only this one.
-    Razorpay?: new (options: any) => {
+    Razorpay?: new (options: RazorpayOptions) => {
       open: () => void;
+      close?: () => void;
       on?: (event: string, cb: (payload: any) => void) => void;
     };
   }
+
+  type RazorpayOptions = {
+    key: string;
+    amount: number;            // in paise
+    currency: string;
+    order_id: string;
+    name?: string;
+    description?: string;
+    prefill?: { name?: string; email?: string; contact?: string };
+    handler?: (res: RazorpaySuccess) => void;
+    theme?: { color?: string };
+  };
+
+  type RazorpaySuccess = {
+    razorpay_payment_id: string;
+    razorpay_order_id: string;
+    razorpay_signature: string;
+  };
 }

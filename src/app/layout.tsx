@@ -61,7 +61,11 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const orgJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -73,25 +77,28 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="h-full scroll-smooth" suppressHydrationWarning>
       <head>
-        {/* Payments */}
-        <link rel="preconnect" href="https://checkout.razorpay.com" />
-        <script defer src="https://checkout.razorpay.com/v1/checkout.js"></script>
-
         {/* Color scheme + PWA niceties */}
         <meta name="color-scheme" content="light dark" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 
         {/* Org JSON-LD */}
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
+        />
       </head>
       <body
         className={`${inter.variable} ${hind.variable} relative min-h-dvh bg-gray-50 text-gray-900 antialiased selection:bg-amber-200 selection:text-amber-900`}
-        style={{
-          // Respect iOS safe areas for any fixed bars you might add
-          paddingBottom: "env(safe-area-inset-bottom)",
-        }}
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
+        {/* Accessibility: Skip link - first element in body */}
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-3 focus:py-2 focus:shadow"
+        >
+          Skip to content
+        </a>
+
         {/* Festive ambient background */}
         <DecorativeBG />
 
@@ -115,20 +122,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
 
-        {/* Accessibility: Skip link */}
-        <a
-          href="#main"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-3 focus:py-2 focus:shadow"
-        >
-          Skip to content
-        </a>
-
         {/* Portal target for modals/menus/toasts */}
         <div id="portal-root" />
 
-        <div id="main">{children}</div>
+        {/* Remove the wrapper with id="main" here */}
+        {children}
 
-        {/* No-JS notice for critical flows */}
         <noscript>
           <div className="fixed inset-x-0 bottom-0 z-50 m-2 rounded-lg bg-amber-100 p-3 text-center text-sm text-amber-900 shadow">
             Some features (payments, previews) need JavaScript enabled.

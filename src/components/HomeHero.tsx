@@ -128,6 +128,7 @@ export default function HomeHero() {
         >
           <Link
             href="/builder"
+            prefetch={false}
             className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 via-fuchsia-500 to-indigo-600 px-6 py-3 text-white shadow-lg shadow-fuchsia-500/30 ring-1 ring-white/20 transition-transform duration-200 hover:scale-[1.02] active:scale-[0.99]"
             aria-label="Start building your invite"
           >

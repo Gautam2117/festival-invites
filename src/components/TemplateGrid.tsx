@@ -228,6 +228,7 @@ export default function TemplateGrid() {
         <div className="flex items-center gap-2">
           <Link
             href="/builder"
+            prefetch={false}
             className="inline-flex items-center gap-2 rounded-xl border border-ink-200 bg-white/80 px-3 py-2 text-sm font-medium text-ink-900 shadow-sm backdrop-blur hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
           >
             See all
