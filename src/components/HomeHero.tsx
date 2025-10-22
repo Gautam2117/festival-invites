@@ -1,45 +1,73 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { Sparkles, Wand2, Wallet, Languages, Play, ChevronDown } from "lucide-react";
 import Link from "next/link";
 
 /**
  * HomeHero — premium, festive, mobile-first hero
- * - Subtle aurora + radial glows (pointer-events-none, so clicks never break)
- * - Cursor spotlight (CSS vars) with reduced-motion fallback
- * - Glass badge, gradient headline, micro-interactions
- * - Trust chips & scroll cue
+ * - Mobile: static gradient, no blur/glass, no heavy animated layers
+ * - Desktop (md+): aurora + orbs + spotlight, tasteful motion
+ * - Spotlight only on fine pointers (no touch jank)
+ * - initial={false} on Motion blocks to avoid second paint on mount
  */
 export default function HomeHero() {
   const prefersReducedMotion = useReducedMotion();
+  const finePointerRef = useRef(false);
+
+  // Detect fine pointer once on mount (desktop/laptop)
+  useEffect(() => {
+    if (typeof window !== "undefined" && "matchMedia" in window) {
+      finePointerRef.current = window.matchMedia("(pointer: fine)").matches;
+    }
+  }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    // lightweight spotlight following cursor
+    // spotlight follows cursor only on fine-pointer & when motion allowed
+    if (!finePointerRef.current || prefersReducedMotion) return;
     const el = e.currentTarget;
     const rect = el.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     el.style.setProperty("--mx", `${x}%`);
     el.style.setProperty("--my", `${y}%`);
-  }, []);
+  }, [prefersReducedMotion]);
 
   return (
     <section
       className="relative overflow-hidden"
       onMouseMove={handleMouseMove}
-      // default spotlight origin (center) for touch devices
       style={{ ["--mx" as any]: "50%", ["--my" as any]: "40%" }}
     >
-      {/* === Ambient festive background layers (non-interactive) === */}
+      {/* ======= Ambient background layers ======= */}
       <div className="pointer-events-none absolute inset-0">
-        {/* Aurora blades */}
-        <div className="absolute -top-36 left-1/2 h-[48rem] w-[48rem] -translate-x-1/2 rounded-full bg-[conic-gradient(from_210deg,rgba(255,193,7,0.22),rgba(244,67,54,0.18),rgba(124,77,255,0.20),transparent_75%)] blur-3xl" />
-        {/* Radial orbs */}
-        <div className="absolute -bottom-32 -left-24 h-[28rem] w-[28rem] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(255,183,77,0.18),transparent_60%)] blur-2xl" />
-        <div className="absolute -bottom-20 -right-16 h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(236,64,122,0.16),transparent_60%)] blur-2xl" />
-        {/* Starry grid */}
+        {/* Mobile: cheap static gradient (no blur/filters) */}
+        <div
+          className="absolute inset-0 md:hidden"
+          style={{
+            background:
+              "linear-gradient(180deg, #fbe7ef 0%, #f4eefc 45%, #eef6ff 100%)",
+          }}
+        />
+        {/* Mobile: subtle dot grid (static) */}
+        <div
+          className="absolute inset-0 md:hidden"
+          style={{
+            opacity: 0.06,
+            backgroundImage:
+              "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'><circle cx='4' cy='4' r='1.2' fill='black' opacity='0.6'/></svg>\")",
+            backgroundRepeat: "repeat",
+            imageRendering: "crisp-edges",
+          }}
+        />
+
+        {/* Desktop (md+): aurora & radial orbs (heavy stuff only above md) */}
+        <div className="hidden md:block absolute -top-36 left-1/2 h-[48rem] w-[48rem] -translate-x-1/2 rounded-full bg-[conic-gradient(from_210deg,rgba(255,193,7,0.22),rgba(244,67,54,0.18),rgba(124,77,255,0.20),transparent_75%)] blur-3xl" />
+        <div className="hidden md:block absolute -bottom-32 -left-24 h-[28rem] w-[28rem] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(255,183,77,0.18),transparent_60%)] blur-2xl" />
+        <div className="hidden md:block absolute -bottom-20 -right-16 h-[24rem] w-[24rem] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(236,64,122,0.16),transparent_60%)] blur-2xl" />
+
+        {/* Starry grid (cheap, static) */}
         <div
           className="absolute inset-0 opacity-[0.14]"
           style={{
@@ -50,10 +78,10 @@ export default function HomeHero() {
         />
       </div>
 
-      {/* Cursor spotlight (soft, masked). Fallback: static glow if reduced-motion */}
+      {/* Cursor spotlight (desktop only; static fallback otherwise) */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-0"
+        className="pointer-events-none absolute inset-0 -z-0 hidden md:block"
         style={{
           background: prefersReducedMotion
             ? "radial-gradient(320px 220px at 50% 40%, rgba(255,255,255,0.20), transparent 60%)"
@@ -63,24 +91,22 @@ export default function HomeHero() {
         }}
       />
 
-      {/* Floating sparkles for festive vibe (respect reduced motion) */}
+      {/* Floating sparkles (desktop only; respects reduced motion) */}
       {!prefersReducedMotion && (
         <>
-          <Floater className="left-[12%] top-[18%]" delay={0} />
-          <Floater className="left-[82%] top-[26%]" delay={0.2} />
-          <Floater className="left-[14%] top-[64%]" delay={0.4} />
-          <Floater className="left-[76%] top-[72%]" delay={0.6} />
+          <Floater className="hidden md:block left-[12%] top-[18%]" delay={0} />
+          <Floater className="hidden md:block left-[82%] top-[26%]" delay={0.2} />
+          <Floater className="hidden md:block left-[14%] top-[64%]" delay={0.4} />
+          <Floater className="hidden md:block left-[76%] top-[72%]" delay={0.6} />
         </>
       )}
 
-      {/* === Content === */}
+      {/* ======= Content ======= */}
       <div className="relative mx-auto max-w-6xl px-4 pt-24 pb-20 text-center sm:pb-24">
-        {/* Glass badge */}
+        {/* Glass badge (no blur on mobile) */}
         <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/40 px-3 py-1 text-xs sm:text-sm backdrop-blur-md shadow-sm"
+          initial={false}
+          className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/90 px-3 py-1 text-xs sm:text-sm md:backdrop-blur-md shadow-sm"
         >
           <Sparkles className="h-4 w-4 text-amber-600" />
           <span className="font-medium text-gray-800">
@@ -90,9 +116,7 @@ export default function HomeHero() {
 
         {/* Headline */}
         <motion.h1
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05, duration: 0.6 }}
+          initial={false}
           className="font-display mt-5 text-[2.1rem] leading-tight sm:text-5xl md:text-6xl"
         >
           Create{" "}
@@ -108,9 +132,7 @@ export default function HomeHero() {
 
         {/* Subcopy */}
         <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.15, duration: 0.6 }}
+          initial={false}
           className="mx-auto mt-4 max-w-2xl text-[15px] text-gray-700 sm:text-base md:text-lg"
         >
           Pick an occasion, add your details, and share a beautiful{" "}
@@ -121,9 +143,7 @@ export default function HomeHero() {
 
         {/* CTAs */}
         <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25, duration: 0.5 }}
+          initial={false}
           className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row"
         >
           <Link
@@ -138,18 +158,16 @@ export default function HomeHero() {
 
           <Link
             href="#templates"
-            className="inline-flex items-center justify-center rounded-2xl border border-gray-300/70 bg-white/75 px-5 py-3 text-gray-900 backdrop-blur-md transition-colors hover:bg-white"
+            className="inline-flex items-center justify-center rounded-2xl border border-gray-300/70 bg-white/95 px-5 py-3 text-gray-900 md:backdrop-blur-md transition-colors hover:bg-white"
             aria-label="Browse templates"
           >
             Browse Templates
           </Link>
         </motion.div>
 
-        {/* Trust chips */}
+        {/* Trust chips (no blur on mobile) */}
         <motion.ul
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35, duration: 0.5 }}
+          initial={false}
           className="mx-auto mt-8 grid w-full max-w-2xl grid-cols-1 gap-2 text-sm text-ink-800 sm:grid-cols-3"
           aria-label="Highlights"
         >
@@ -158,12 +176,10 @@ export default function HomeHero() {
           <TrustChip icon={<Languages className="h-4 w-4" />} text="English · हिंदी · Hinglish" />
         </motion.ul>
 
-        {/* Mini festive strip */}
+        {/* Mini festive strip (no blur on mobile) */}
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.45, duration: 0.6 }}
-          className="mx-auto mt-8 inline-flex flex-wrap items-center justify-center gap-3 rounded-full border border-white/25 bg-white/40 px-4 py-2 text-sm font-medium text-gray-800 backdrop-blur-md shadow"
+          initial={false}
+          className="mx-auto mt-8 inline-flex flex-wrap items-center justify-center gap-3 rounded-full border border-white/25 bg-white/90 px-4 py-2 text-sm font-medium text-gray-800 md:backdrop-blur-md shadow"
           aria-label="Popular occasions"
         >
           <span>🪔 Diwali</span>
@@ -177,16 +193,11 @@ export default function HomeHero() {
           <span>🌙 Eid</span>
         </motion.div>
 
-        {/* Scroll cue */}
-        <motion.div
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.55, duration: 0.6 }}
-          className="mt-10 flex items-center justify-center"
-        >
+        {/* Scroll cue (no blur on mobile) */}
+        <motion.div initial={false} className="mt-10 flex items-center justify-center">
           <a
             href="#templates"
-            className="group inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/50 px-3 py-1 text-xs text-ink-700 backdrop-blur-md hover:bg-white"
+            className="group inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/90 px-3 py-1 text-xs text-ink-700 md:backdrop-blur-md hover:bg-white"
             aria-label="Scroll to templates"
           >
             Explore templates
@@ -202,7 +213,7 @@ export default function HomeHero() {
 
 function TrustChip({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
-    <li className="rounded-xl border border-white/60 bg-white/80 px-3 py-2 text-ink-800 backdrop-blur">
+    <li className="rounded-xl border border-white/60 bg-white/95 px-3 py-2 text-ink-800 md:backdrop-blur">
       <span className="inline-flex items-center gap-2">
         <span className="inline-grid h-6 w-6 place-items-center rounded-lg bg-ink-900/90 text-white">
           {icon}
@@ -217,7 +228,7 @@ function Dot() {
   return <span className="h-1 w-1 rounded-full bg-gray-500/60" />;
 }
 
-/** Animated sparkle floater (respects reduced motion via parent logic) */
+/** Animated sparkle floater (desktop only; parent already gates motion) */
 function Floater({
   className,
   delay = 0,

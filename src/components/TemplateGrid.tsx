@@ -3,8 +3,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { templates } from "@/templates";
 import { Search, Sparkles, Filter, X } from "lucide-react";
 
@@ -15,13 +15,13 @@ type T = {
   title: string;
   thumbnail: string;
   languages?: string[];
-  accent?: string; // tailwind gradient e.g. "from-amber-400 via-rose-400 to-indigo-500"
+  accent?: string; // e.g. "from-amber-400 via-rose-400 to-indigo-500"
 };
 
 const fadeUp = (i = 0) => ({
   initial: { opacity: 0, y: 20 },
   whileInView: { opacity: 1, y: 0 },
-  transition: { duration: 0.5, delay: Math.min(i * 0.03, 0.25) },
+  transition: { duration: 0.45, delay: Math.min(i * 0.03, 0.25) },
   viewport: { once: true, amount: 0.25 },
 });
 
@@ -29,10 +29,22 @@ const fadeUp = (i = 0) => ({
 function FestiveGlow() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-      <div className="absolute -top-14 left-1/2 h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(255,193,7,0.18),transparent_60%)] blur-3xl" />
-      <div className="absolute right-[-8%] top-24 h-[28rem] w-[28rem] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(244,67,54,0.12),transparent_60%)] blur-3xl" />
+      {/* Hide the heavy glows on mobile to avoid jank */}
+      <div className="absolute -top-14 left-1/2 hidden h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(255,193,7,0.18),transparent_60%)] blur-3xl md:block" />
+      <div className="absolute right-[-8%] top-24 hidden h-[28rem] w-[28rem] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(244,67,54,0.12),transparent_60%)] blur-3xl md:block" />
     </div>
   );
+}
+
+/* ----------------------------- Pointer helper ----------------------------- */
+function useFinePointer() {
+  const [fine, setFine] = useState(false);
+  useEffect(() => {
+    if ("matchMedia" in window) {
+      setFine(window.matchMedia("(pointer: fine)").matches);
+    }
+  }, []);
+  return fine;
 }
 
 /* --------------------------------- Chips ---------------------------------- */
@@ -53,7 +65,7 @@ function LangChip({
       ${
         active
           ? "bg-ink-900 text-white ring-white/60"
-          : "bg-white/85 text-ink-800 ring-white/60 hover:bg-white"
+          : "bg-white/90 text-ink-800 ring-white/60 hover:bg-white"
       }`}
       aria-pressed={active}
     >
@@ -63,46 +75,66 @@ function LangChip({
 }
 
 /* --------------------------------- Card ----------------------------------- */
-function TemplateCard({ t, i }: { t: T; i: number }) {
+function TemplateCard({
+  t,
+  i,
+  priority = false,
+  finePointer,
+}: {
+  t: T;
+  i: number;
+  priority?: boolean;
+  finePointer: boolean;
+}) {
+  const prefersReducedMotion = useReducedMotion();
   const accent = t.accent || "from-amber-400 via-rose-400 to-indigo-500";
+  const hoverLift =
+    finePointer && !prefersReducedMotion ? { y: -3 } : undefined;
+
   return (
     <Link
       href={`/builder?template=${t.slug}`}
       className="group relative block focus:outline-none"
       aria-label={`Open ${t.title} template`}
-      prefetch={false}
+      prefetch={false} // avoids heavy route prefetch on mobile
+      style={{ contain: "content" }} // localize paints
     >
       <motion.div
         {...fadeUp(i)}
-        whileHover={{ y: -3 }}
+        whileHover={hoverLift}
         transition={{ type: "spring", stiffness: 260, damping: 18 }}
         className={`rounded-2xl bg-gradient-to-br ${accent} p-[1px]
           ring-0 ring-offset-2 ring-offset-white
           group-focus-visible:ring-4 group-focus-visible:ring-amber-500/40`}
       >
-        <article className="relative overflow-hidden rounded-[14px] bg-white/85 shadow-sm ring-1 ring-black/5 backdrop-blur">
+        <article className="relative overflow-hidden rounded-[14px] bg-white/92 shadow-sm ring-1 ring-black/5 md:backdrop-blur">
           {/* Media */}
           <div className="relative aspect-[16/9] w-full">
             {/* Subtle wash behind image */}
             <div
-              className={`pointer-events-none absolute inset-0 bg-gradient-to-tr ${accent} opacity-[0.15]`}
+              className={`pointer-events-none absolute inset-0 bg-gradient-to-tr ${accent} opacity-[0.12]`}
             />
             <Image
               src={t.thumbnail}
               alt={t.title}
               fill
-              loading="lazy"
-              sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-              className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+              priority={priority}
+              loading={priority ? undefined : "lazy"}
+              decoding="async"
+              sizes="(max-width:640px) 84vw, (max-width:1024px) 45vw, 30vw"
+              className="object-cover transition-transform duration-400 group-hover:scale-[1.03]"
+              draggable={false}
             />
             {/* Bottom fade */}
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/35 to-transparent" />
-            {/* Hover CTA */}
-            <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-              <div className="rounded-xl bg-white/90 px-3 py-1.5 text-xs font-semibold text-ink-900 shadow-sm backdrop-blur">
-                Preview & customize
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/35 to-transparent" />
+            {/* Hover CTA (fine pointer only) */}
+            {finePointer && (
+              <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                <div className="rounded-xl bg-white/95 px-3 py-1.5 text-xs font-semibold text-ink-900 shadow-sm md:backdrop-blur">
+                  Preview & customize
+                </div>
               </div>
-            </div>
+            )}
             {/* Sparkle */}
             <svg
               className="pointer-events-none absolute right-3 top-3 h-9 w-9 opacity-80"
@@ -179,11 +211,16 @@ function TemplateCard({ t, i }: { t: T; i: number }) {
 
 /* --------------------------------- Main ----------------------------------- */
 export default function TemplateGrid() {
+  const finePointer = useFinePointer();
+
   const [query, setQuery] = useState("");
   const [lang, setLang] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Collect languages dynamically
+  // Defer the heavy filter work while typing
+  const deferredQuery = useDeferredValue(query);
+
+  // Collect languages dynamically (stable order)
   const languages = useMemo(() => {
     const s = new Set<string>();
     (templates as T[]).forEach((t) => t.languages?.forEach((l) => s.add(l)));
@@ -192,9 +229,11 @@ export default function TemplateGrid() {
 
   const list = useMemo(() => {
     let arr = templates as T[];
+
     if (lang) arr = arr.filter((t) => t.languages?.includes(lang));
-    if (query.trim()) {
-      const q = query.toLowerCase();
+
+    const q = deferredQuery.trim().toLowerCase();
+    if (q) {
       arr = arr.filter(
         (t) =>
           t.title.toLowerCase().includes(q) ||
@@ -203,12 +242,20 @@ export default function TemplateGrid() {
       );
     }
     return arr;
-  }, [query, lang]);
+  }, [deferredQuery, lang]);
 
   const count = list.length;
 
+  // Preload only a few thumbnails (perceived speed)
+  const PRIORITY_DESKTOP = 6;
+  const PRIORITY_MOBILE = 3;
+
   return (
-    <section id="templates" className="relative mx-auto max-w-6xl px-4 pb-20">
+    <section
+      id="templates"
+      className="relative mx-auto max-w-6xl px-4 pb-20"
+      style={{ contentVisibility: "auto", containIntrinsicSize: "1200px 900px" }}
+    >
       <FestiveGlow />
 
       {/* Header */}
@@ -229,20 +276,12 @@ export default function TemplateGrid() {
           <Link
             href="/builder"
             prefetch={false}
-            className="inline-flex items-center gap-2 rounded-xl border border-ink-200 bg-white/80 px-3 py-2 text-sm font-medium text-ink-900 shadow-sm backdrop-blur hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+            className="inline-flex items-center gap-2 rounded-xl border border-ink-200 bg-white/90 px-3 py-2 text-sm font-medium text-ink-900 shadow-sm md:backdrop-blur hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+            aria-label="Open the full builder"
           >
             See all
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              className="opacity-70"
-              aria-hidden
-            >
-              <path
-                fill="currentColor"
-                d="M8.59 16.59L13.17 12L8.59 7.41L10 6l6 6l-6 6z"
-              />
+            <svg width="16" height="16" viewBox="0 0 24 24" className="opacity-70" aria-hidden>
+              <path fill="currentColor" d="M8.59 16.59L13.17 12L8.59 7.41L10 6l6 6l-6 6z" />
             </svg>
           </Link>
         </div>
@@ -253,7 +292,7 @@ export default function TemplateGrid() {
         {/* Search */}
         <label
           htmlFor="template-search"
-          className="relative flex items-center rounded-xl border border-white/60 bg-white/90 px-3 py-2 shadow-sm backdrop-blur"
+          className="relative flex items-center rounded-xl border border-white/60 bg-white/95 px-3 py-2 shadow-sm md:backdrop-blur"
         >
           <Search className="mr-2 h-4 w-4 text-ink-600" aria-hidden />
           <input
@@ -263,6 +302,7 @@ export default function TemplateGrid() {
             placeholder="Search templates, e.g. Diwali / Birthday / Wedding"
             className="w-full bg-transparent text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none"
             aria-label="Search templates"
+            enterKeyHint="search"
           />
           {query && (
             <button
@@ -281,8 +321,9 @@ export default function TemplateGrid() {
         <button
           type="button"
           onClick={() => setShowFilters((s) => !s)}
-          className="flex items-center justify-center gap-2 rounded-xl border border-white/60 bg-white/90 px-3 py-2 text-sm text-ink-900 shadow-sm backdrop-blur sm:hidden"
+          className="flex items-center justify-center gap-2 rounded-xl border border-white/60 bg-white/95 px-3 py-2 text-sm text-ink-900 shadow-sm md:backdrop-blur sm:hidden"
           aria-expanded={showFilters}
+          aria-controls="language-toolbar"
         >
           <Filter className="h-4 w-4" />
           Filters
@@ -291,11 +332,18 @@ export default function TemplateGrid() {
 
       {/* Language chips */}
       <div
+        id="language-toolbar"
         className={`mb-5 flex gap-2 overflow-x-auto pb-1 ${
           showFilters ? "block" : "hidden sm:flex"
         }`}
         role="toolbar"
         aria-label="Filter by language"
+        style={{
+          WebkitMaskImage:
+            "linear-gradient(90deg, transparent 0, black 8px, black calc(100% - 8px), transparent 100%)",
+          maskImage:
+            "linear-gradient(90deg, transparent 0, black 8px, black calc(100% - 8px), transparent 100%)",
+        } as React.CSSProperties}
       >
         <LangChip label="All" active={!lang} onClick={() => setLang(null)} />
         {languages.map((l) => (
@@ -305,7 +353,7 @@ export default function TemplateGrid() {
 
       {/* Results meta */}
       <div
-        className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/85 px-3 py-1 text-xs text-ink-700 backdrop-blur"
+        className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/90 px-3 py-1 text-xs text-ink-700 md:backdrop-blur"
         aria-live="polite"
       >
         <Sparkles className="h-4 w-4 text-amber-500" aria-hidden />
@@ -323,25 +371,50 @@ export default function TemplateGrid() {
 
       {/* Mobile rail (snap) */}
       <div className="sm:hidden">
-        <div className="flex snap-x gap-4 overflow-x-auto pb-2">
+        <div
+          className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2"
+          role="list"
+          style={{
+            WebkitMaskImage:
+              "linear-gradient(90deg, transparent 0, black 12px, black calc(100% - 12px), transparent 100%)",
+            maskImage:
+              "linear-gradient(90deg, transparent 0, black 12px, black calc(100% - 12px), transparent 100%)",
+            msOverflowStyle: "none",
+            scrollbarWidth: "none",
+          } as React.CSSProperties}
+        >
           {list.map((t, i) => (
-            <div key={t.id} className="snap-start shrink-0 basis-[82%] sm:basis-[48%]">
-              <TemplateCard t={t} i={i} />
+            <div key={t.id} className="snap-start shrink-0 basis-[84%]" role="listitem">
+              <TemplateCard
+                t={t}
+                i={i}
+                finePointer={finePointer}
+                priority={i < PRIORITY_MOBILE}
+              />
             </div>
           ))}
         </div>
       </div>
 
       {/* Desktop grid */}
-      <div className="hidden grid-cols-2 gap-6 sm:grid lg:grid-cols-3">
+      <div
+        className="hidden grid-cols-2 gap-6 sm:grid lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4"
+        style={{ contentVisibility: "auto", containIntrinsicSize: "900px 800px" }}
+      >
         {list.map((t, i) => (
-          <TemplateCard key={t.id} t={t} i={i} />
+          <TemplateCard
+            key={t.id}
+            t={t}
+            i={i}
+            finePointer={finePointer}
+            priority={i < PRIORITY_DESKTOP}
+          />
         ))}
       </div>
 
       {/* Empty state */}
       {list.length === 0 && (
-        <div className="mt-8 rounded-2xl border border-white/60 bg-white/90 p-6 text-center text-sm text-ink-700 backdrop-blur">
+        <div className="mt-8 rounded-2xl border border-white/60 bg-white/95 p-6 text-center text-sm text-ink-700 md:backdrop-blur">
           No templates found. Try a different search or language.
         </div>
       )}

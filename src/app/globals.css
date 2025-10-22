@@ -34,3 +34,16 @@
            focus:ring-brand-600/20 disabled:opacity-50 disabled:cursor-not-allowed;
   }
 }
+
+@keyframes star-drift {
+  0%   { transform: translate3d(0,0,0); }
+  50%  { transform: translate3d(-12px, -8px, 0); }
+  100% { transform: translate3d(0,0,0); }
+}
+.star-drift {
+  animation: star-drift 26s ease-in-out infinite;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  will-change: transform;
+}
+.no-scrollbar::-webkit-scrollbar { display: none; }

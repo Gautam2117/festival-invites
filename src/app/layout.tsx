@@ -61,11 +61,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   const orgJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -80,7 +76,6 @@ export default function RootLayout({
         {/* Color scheme + PWA niceties */}
         <meta name="color-scheme" content="light dark" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-
         {/* Org JSON-LD */}
         <script
           type="application/ld+json"
@@ -99,23 +94,21 @@ export default function RootLayout({
           Skip to content
         </a>
 
-        {/* Festive ambient background */}
+        {/* Festive ambient background (now mobile-light inside component) */}
         <DecorativeBG />
 
-        {/* Soft vignette for depth */}
+        {/* Desktop-only extra vignette & grain to avoid mobile jank */}
         <div
           aria-hidden
-          className="pointer-events-none fixed inset-0 -z-10"
+          className="pointer-events-none fixed inset-0 -z-10 hidden md:block"
           style={{
             background:
               "radial-gradient(1200px 800px at 50% -10%, rgba(255,255,255,0.65), rgba(255,255,255,0.25) 45%, rgba(0,0,0,0.12) 80%, rgba(0,0,0,0.28))",
           }}
         />
-
-        {/* Ultra-subtle noise / grain */}
         <div
           aria-hidden
-          className="pointer-events-none fixed inset-0 -z-10 opacity-[0.04] mix-blend-multiply"
+          className="pointer-events-none fixed inset-0 -z-10 hidden md:block opacity-[0.06]"
           style={{
             backgroundImage:
               "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 40 40'><circle cx='1' cy='1' r='1' fill='black' opacity='0.7'/></svg>\")",
@@ -125,7 +118,7 @@ export default function RootLayout({
         {/* Portal target for modals/menus/toasts */}
         <div id="portal-root" />
 
-        {/* Remove the wrapper with id="main" here */}
+        {/* Pages own their own <main id="main"> */}
         {children}
 
         <noscript>

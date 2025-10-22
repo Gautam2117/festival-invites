@@ -5,8 +5,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { sectionize } from "@/lib/festivals";
 import type { Festival } from "@/types/festival";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { CalendarDays, MapPin, Wand2, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 /* ----------------------------- date utilities ----------------------------- */
 const IST = "Asia/Kolkata";
@@ -52,17 +53,45 @@ function whenLabel(iso: string) {
   });
 }
 
+/* ----------------------------- pointer helpers ---------------------------- */
+function useFinePointer() {
+  const [fine, setFine] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined" && "matchMedia" in window) {
+      setFine(window.matchMedia("(pointer: fine)").matches);
+    }
+  }, []);
+  return fine;
+}
+
 /* --------------------------------- Card ---------------------------------- */
 type CardProps = Pick<
   Festival,
   "slug" | "name" | "date_iso" | "hero_image" | "region"
->;
+> & {
+  /** Request Next/Image priority preloading for a handful of cards */
+  priority?: boolean;
+};
 
 function Card(p: CardProps) {
+  const prefersReducedMotion = useReducedMotion();
+  const finePointer = useFinePointer();
   const { label: relative, days } = daysUntilISO(p.date_iso);
   const when = whenLabel(p.date_iso);
   const region = p.region || "IN";
   const href = `/builder?festival=${encodeURIComponent(p.slug)}`;
+
+  const onMove = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!finePointer) return;
+    const el = e.currentTarget;
+    const rect = el.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    el.style.setProperty("--x", `${x}%`);
+    el.style.setProperty("--y", `${y}%`);
+  }, [finePointer]);
+
+  const hoverLift = finePointer && !prefersReducedMotion ? { y: -3 } : undefined;
 
   return (
     <Link
@@ -70,11 +99,13 @@ function Card(p: CardProps) {
       aria-label={`Create invite for ${p.name} on ${when}`}
       prefetch={false}
       className="group block"
+      onMouseMove={onMove}
+      style={{ contain: "content" }} // isolate paints per card
     >
       <motion.div
-        whileHover={{ y: -3 }}
+        whileHover={hoverLift}
         transition={{ type: "spring", stiffness: 260, damping: 18 }}
-        className="relative overflow-hidden rounded-2xl border border-white/70 bg-white/85 p-3 shadow-sm backdrop-blur"
+        className="relative overflow-hidden rounded-2xl border border-white/70 bg-white/90 p-3 shadow-sm md:backdrop-blur"
       >
         {/* festive accent ring */}
         <div
@@ -87,21 +118,24 @@ function Card(p: CardProps) {
         />
 
         {/* media */}
-        <div className="relative mb-2 h-32 w-full overflow-hidden rounded-xl">
+        <div className="relative mb-2 w-full overflow-hidden rounded-xl aspect-[16/10] sm:aspect-[16/9]">
           {p.hero_image ? (
             <Image
               src={p.hero_image}
               alt={p.name}
               fill
-              sizes="(max-width:768px) 80vw, (max-width:1200px) 33vw, 20vw"
-              className="object-cover transition-transform duration-400 group-hover:scale-[1.04]"
-              priority={days <= 7}
+              sizes="(max-width: 640px) 72vw, (max-width: 768px) 58vw, (max-width: 1024px) 33vw, 20vw"
+              className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+              priority={!!p.priority}
+              loading={p.priority ? undefined : "lazy"}
+              decoding="async"
+              draggable={false}
             />
           ) : (
             <div className="absolute inset-0 bg-gradient-to-br from-amber-200 via-rose-200 to-violet-200" />
           )}
 
-          {/* gradient overlay + sparkle */}
+          {/* gradient overlay + sparkle + relative label */}
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-black/5 to-transparent" />
           <Sparkles
             className="pointer-events-none absolute right-2 top-2 h-4 w-4 text-amber-300 opacity-80"
@@ -132,10 +166,12 @@ function Card(p: CardProps) {
           </span>
         </div>
 
-        {/* subtle spotlight on hover */}
-        <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-          <div className="absolute -inset-12 bg-[radial-gradient(240px_160px_at_var(--x,50%)_var(--y,40%),rgba(255,255,255,0.22),transparent_60%)]" />
-        </div>
+        {/* spotlight on hover: render only for fine pointers */}
+        {finePointer && !prefersReducedMotion && (
+          <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+            <div className="absolute -inset-12 bg-[radial-gradient(240px_160px_at_var(--x,50%)_var(--y,40%),rgba(255,255,255,0.22),transparent_60%)]" />
+          </div>
+        )}
       </motion.div>
     </Link>
   );
@@ -154,30 +190,63 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 /* ------------------------------- Section UI ------------------------------- */
-/** Mobile: horizontal snap rail
- *  Desktop: tidy grid (3/4/5 cols)
+/** Mobile: horizontal snap rail (with edge fade)
+ *  Desktop: tidy grid (2/3/4/5 cols)
  */
 function Section({
   title,
   items,
   testId,
+  priorityCount = 2,
 }: {
   title: string;
   items: CardProps[];
   testId: string;
+  /** how many first cards should preload for perceived speed */
+  priorityCount?: number;
 }) {
   if (!items.length) return null;
 
+  // Preload only a couple of cards per section for speed
+  const prepared = useMemo(
+    () =>
+      items.map((it, idx) => ({
+        ...it,
+        priority: idx < priorityCount,
+      })),
+    [items, priorityCount]
+  );
+
   return (
-    <section className="mt-8 first:mt-0" data-testid={testId}>
+    <section
+      className="mt-8 first:mt-0"
+      data-testid={testId}
+      style={{
+        contentVisibility: "auto",
+        containIntrinsicSize: "900px 600px",
+      }}
+    >
       <SectionHeader title={title} />
 
       {/* Mobile rail (snap) */}
-      <div className="mt-3 flex snap-x gap-3 overflow-x-auto pb-2 sm:hidden">
-        {items.map((f) => (
+      <div
+        className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 sm:hidden"
+        role="list"
+        style={{
+          WebkitMaskImage:
+            "linear-gradient(90deg, transparent 0, black 12px, black calc(100% - 12px), transparent 100%)",
+          maskImage:
+            "linear-gradient(90deg, transparent 0, black 12px, black calc(100% - 12px), transparent 100%)",
+          msOverflowStyle: "none", // IE/Edge legacy
+          scrollbarWidth: "none", // Firefox
+        } as React.CSSProperties}
+      >
+        {/* Hide scrollbar on WebKit (inline style can't target pseudo, so use utility if you have one) */}
+        {prepared.map((f) => (
           <div
             key={f.slug}
-            className="snap-start shrink-0 basis-[72%] xs:basis-[58%]"
+            className="snap-start shrink-0 basis-[78%] xs:basis-[62%]"
+            role="listitem"
           >
             <Card {...f} />
           </div>
@@ -186,15 +255,8 @@ function Section({
 
       {/* Desktop grid */}
       <div className="mt-3 hidden grid-cols-2 gap-3 sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-        {items.map((f) => (
-          <Card
-            key={f.slug}
-            slug={f.slug}
-            name={f.name}
-            date_iso={f.date_iso}
-            hero_image={f.hero_image}
-            region={f.region}
-          />
+        {prepared.map((f) => (
+          <Card key={f.slug} {...f} />
         ))}
       </div>
     </section>
@@ -217,20 +279,21 @@ export default function FestivalRail() {
 
   return (
     <div className="relative mx-auto max-w-6xl px-4 py-8">
-      {/* festive ambient swirls */}
+      {/* festive ambient swirls (desktop only to avoid mobile jank) */}
       <div
         aria-hidden
-        className="pointer-events-none absolute -left-20 top-0 -z-10 h-40 w-40 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(255,183,77,0.20),transparent_60%)] blur-2xl"
+        className="pointer-events-none absolute -left-20 top-0 -z-10 hidden h-40 w-40 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(255,183,77,0.20),transparent_60%)] blur-2xl md:block"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute right-0 top-12 -z-10 h-44 w-44 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(240,98,146,0.18),transparent_60%)] blur-2xl"
+        className="pointer-events-none absolute right-0 top-12 -z-10 hidden h-44 w-44 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(240,98,146,0.18),transparent_60%)] blur-2xl md:block"
       />
 
       <Section
         title="Featured festivals"
         items={slim(featured)}
         testId="rail-featured"
+        priorityCount={3}
       />
       <Section title="This week" items={slim(week)} testId="rail-week" />
       <Section
