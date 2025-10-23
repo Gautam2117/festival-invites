@@ -23,11 +23,37 @@ import {
 } from "lucide-react";
 
 /* --------------------------------------------- */
+/* Small utilities                               */
+/* --------------------------------------------- */
+function useIsCoarsePointer() {
+  const [coarse, setCoarse] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mql = window.matchMedia("(pointer: coarse)");
+    const onChange = () => setCoarse(mql.matches);
+    onChange();
+    try {
+      mql.addEventListener("change", onChange);
+      return () => mql.removeEventListener("change", onChange);
+    } catch {
+      // Safari
+      // @ts-ignore
+      mql.addListener(onChange);
+      // @ts-ignore
+      return () => mql.removeListener(onChange);
+    }
+  }, []);
+  return coarse;
+}
+
+/* --------------------------------------------- */
 /* Motion helpers                                */
 /* --------------------------------------------- */
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 18 },
-  animate: { opacity: 1, y: 0, transition: { duration: 0.6, delay } },
+  whileInView: { opacity: 1, y: 0 },
+  transition: { duration: 0.6, delay },
+  viewport: { once: true, amount: 0.3 },
 });
 
 const float = (duration = 8, y = 12) => ({
@@ -38,7 +64,7 @@ const float = (duration = 8, y = 12) => ({
 });
 
 /* --------------------------------------------- */
-/* Small festive background + utilities          */
+/* Festive background (lighter on small screens) */
 /* --------------------------------------------- */
 function FestiveGlow() {
   const reduce = useReducedMotion();
@@ -47,28 +73,32 @@ function FestiveGlow() {
   const anim3 = reduce ? {} : float(14, 18);
 
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 -z-10"
+      style={{ contentVisibility: "auto", containIntrinsicSize: "1200px 800px" }}
+    >
       <motion.div
-        className="absolute -top-24 left-1/2 h-[44rem] w-[44rem] -translate-x-1/2 rounded-full blur-3xl"
+        className="absolute -top-24 left-1/2 h-[36rem] w-[36rem] -translate-x-1/2 rounded-full blur-2xl md:h-[44rem] md:w-[44rem] md:blur-3xl"
         style={{
           background:
-            "radial-gradient(ellipse at center, rgba(255,183,77,0.22), transparent 60%)",
+            "radial-gradient(ellipse at center, rgba(255,183,77,0.20), transparent 60%)",
         }}
         {...anim}
       />
       <motion.div
-        className="absolute top-40 right-[-10%] h-[32rem] w-[32rem] rounded-full blur-3xl"
+        className="absolute top-40 right-[-10%] h-[26rem] w-[26rem] rounded-full blur-2xl md:h-[32rem] md:w-[32rem] md:blur-3xl"
         style={{
           background:
-            "radial-gradient(ellipse at center, rgba(240,98,146,0.18), transparent 60%)",
+            "radial-gradient(ellipse at center, rgba(240,98,146,0.16), transparent 60%)",
         }}
         {...anim2}
       />
       <motion.div
-        className="absolute bottom-[-10%] left-[-10%] h-[28rem] w-[28rem] rounded-full blur-3xl"
+        className="absolute bottom-[-10%] left-[-10%] h-[22rem] w-[22rem] rounded-full blur-2xl md:h-[28rem] md:w-[28rem] md:blur-3xl"
         style={{
           background:
-            "radial-gradient(ellipse at center, rgba(124,77,255,0.18), transparent 60%)",
+            "radial-gradient(ellipse at center, rgba(124,77,255,0.16), transparent 60%)",
         }}
         {...anim3}
       />
@@ -89,12 +119,13 @@ function ShimmerText({ children }: { children: React.ReactNode }) {
           className="pointer-events-none absolute inset-0"
           initial={{ opacity: 0 }}
           animate={{ opacity: [0, 0.6, 0] }}
-          transition={{ duration: 2.6, repeat: Infinity, delay: 0.6 }}
+          transition={{ duration: 2.4, repeat: Infinity, delay: 0.6 }}
           style={{
             background:
-              "linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.5), transparent 70%)",
+              "linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.55), transparent 70%)",
             WebkitMaskImage:
               "linear-gradient(180deg, black 20%, transparent 60%)",
+            maskImage: "linear-gradient(180deg, black 20%, transparent 60%)",
           }}
         />
       )}
@@ -108,6 +139,9 @@ function GradientDivider() {
   );
 }
 
+/* --------------------------------------------- */
+/* TiltCard: disables tilt on coarse pointers     */
+/* --------------------------------------------- */
 function TiltCard({
   children,
   className = "",
@@ -115,11 +149,16 @@ function TiltCard({
   children: React.ReactNode;
   className?: string;
 }) {
+  const reduce = useReducedMotion();
+  const coarse = useIsCoarsePointer();
+  const hover =
+    !reduce && !coarse ? { y: -4, rotateX: 2, rotateY: -2 } : undefined;
+
   return (
     <motion.div
-      whileHover={{ y: -4, rotateX: 2, rotateY: -2 }}
+      whileHover={hover}
       transition={{ type: "spring", stiffness: 250, damping: 18 }}
-      className={`rounded-2xl border border-white/60 bg-white/90 p-5 shadow-sm backdrop-blur ${className}`}
+      className={`rounded-2xl border border-white/60 bg-white/90 p-5 shadow-sm supports-[backdrop-filter]:backdrop-blur ${className}`}
     >
       {children}
     </motion.div>
@@ -153,7 +192,7 @@ function SectionNav() {
             if (e.isIntersecting) setActive(id);
           });
         },
-        { rootMargin: "-40% 0px -55% 0px", threshold: 0.01 }
+        { rootMargin: "-45% 0px -50% 0px", threshold: 0.01 }
       );
       io.observe(el);
       observers.push(io);
@@ -163,31 +202,36 @@ function SectionNav() {
 
   return (
     <nav
-      aria-label="About page"
-      className="sticky top-20 hidden h-max xl:block"
+      aria-label="About page sections"
+      className="sticky"
+      style={{ top: "calc(5rem + env(safe-area-inset-top))" }}
     >
-      <ul className="rounded-2xl border border-white/60 bg-white/85 p-3 backdrop-blur">
-        {SECTIONS.map((s) => (
-          <li key={s.id}>
-            <a
-              href={`#${s.id}`}
-              className={`block rounded-lg px-3 py-2 text-sm transition ${
-                active === s.id
-                  ? "bg-ink-900 text-white"
-                  : "text-ink-800 hover:bg-white"
-              }`}
-            >
-              {s.label}
-            </a>
-          </li>
-        ))}
+      <ul className="rounded-2xl border border-white/60 bg-white/85 p-3 supports-[backdrop-filter]:backdrop-blur">
+        {SECTIONS.map((s) => {
+          const current = active === s.id;
+          return (
+            <li key={s.id}>
+              <a
+                href={`#${s.id}`}
+                aria-current={current ? "page" : undefined}
+                className={`block rounded-lg px-3 py-2 text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 ${
+                  current
+                    ? "bg-ink-900 text-white"
+                    : "text-ink-800 hover:bg-white"
+                }`}
+              >
+                {s.label}
+              </a>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );
 }
 
 /* --------------------------------------------- */
-/* FAQ (kept content, better container)          */
+/* FAQ                                           */
 /* --------------------------------------------- */
 type FaqItem = { q: string; a: React.ReactNode };
 type FaqGroup = { title: string; items: FaqItem[] };
@@ -325,12 +369,12 @@ function FaqAccordion() {
               return (
                 <div
                   key={id}
-                  className="rounded-xl border border-white/60 bg-white/90 p-0 backdrop-blur"
+                  className="rounded-xl border border-white/60 bg-white/90 p-0 supports-[backdrop-filter]:backdrop-blur"
                 >
                   <button
                     type="button"
                     onClick={() => setOpen(isOpen ? null : id)}
-                    className="flex w-full items-center justify-between px-4 py-3 text-left"
+                    className="flex w-full items-center justify-between px-4 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 rounded-xl"
                     aria-expanded={isOpen}
                     aria-controls={id}
                   >
@@ -407,7 +451,7 @@ function Step({
 }) {
   return (
     <motion.li
-      className="rounded-xl border border-white/60 bg-white/90 p-4 backdrop-blur"
+      className="rounded-xl border border-white/60 bg-white/90 p-4 supports-[backdrop-filter]:backdrop-blur"
       {...fadeUp(delay)}
     >
       <div className="text-xs font-medium text-ink-700">{step}</div>
@@ -446,7 +490,7 @@ function FormatCard({
 }
 
 /* --------------------------------------------- */
-/* Scroll-to-top button (mobile/long pages)      */
+/* Scroll-to-top button (mobile)                 */
 /* --------------------------------------------- */
 function ScrollTopButton() {
   const [show, setShow] = useState(false);
@@ -465,7 +509,7 @@ function ScrollTopButton() {
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 30, opacity: 0 }}
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="fixed bottom-4 right-4 z-40 rounded-full border border-white/60 bg-white/90 p-2 shadow backdrop-blur sm:hidden"
+          className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-40 rounded-full border border-white/60 bg-white/90 p-3 shadow supports-[backdrop-filter]:backdrop-blur sm:hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
           aria-label="Back to top"
           title="Back to top"
         >
@@ -484,7 +528,13 @@ export default function AboutPage() {
   const year = useMemo(() => new Date().getFullYear(), []);
 
   return (
-    <main className="relative mx-auto max-w-6xl px-4 py-14">
+    <main
+      className="relative mx-auto max-w-6xl px-4 py-14"
+      style={{
+        paddingBottom: "max(3rem, env(safe-area-inset-bottom))",
+        contentVisibility: "auto",
+      }}
+    >
       <FestiveGlow />
       <div className="grid grid-cols-12 gap-6">
         {/* Side nav (desktop) */}
@@ -495,9 +545,13 @@ export default function AboutPage() {
         {/* Content */}
         <div className="col-span-12 xl:col-span-10">
           {/* Hero */}
-          <motion.section id="overview" className="text-center" {...fadeUp(0.05)}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/70 px-3 py-1 text-xs text-ink-700 backdrop-blur">
-              <Sparkles className="h-3.5 w-3.5 text-brand-600" />
+          <motion.section
+            id="overview"
+            className="text-center scroll-mt-28"
+            {...fadeUp(0.05)}
+          >
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/70 px-3 py-1 text-xs text-ink-700 supports-[backdrop-filter]:backdrop-blur">
+              <Sparkles className="h-3.5 w-3.5 text-amber-600" />
               Our mission
             </span>
             <h1 className="font-display mx-auto mt-4 max-w-4xl text-4xl leading-tight sm:text-5xl">
@@ -516,7 +570,7 @@ export default function AboutPage() {
               <Link
                 href="/builder"
                 prefetch={false}
-                className="inline-flex items-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow hover:opacity-95"
+                className="inline-flex items-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
               >
                 <Wand2 className="mr-2 h-4 w-4" />
                 Start Building
@@ -557,7 +611,7 @@ export default function AboutPage() {
           </motion.section>
 
           {/* Why */}
-          <section id="why" className="mx-auto mt-10">
+          <section id="why" className="mx-auto mt-10 scroll-mt-28">
             <h2 className="font-display text-xl">Why Festival Invites</h2>
             <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <FeatureCard
@@ -594,7 +648,7 @@ export default function AboutPage() {
           </section>
 
           {/* How it works */}
-          <section id="how" className="mx-auto mt-12 max-w-5xl">
+          <section id="how" className="mx-auto mt-12 max-w-5xl scroll-mt-28">
             <h2 className="font-display text-xl">How it works</h2>
             <ol className="mt-4 grid gap-4 sm:grid-cols-3">
               <Step
@@ -619,7 +673,7 @@ export default function AboutPage() {
           </section>
 
           {/* Formats */}
-          <section id="formats" className="mx-auto mt-10">
+          <section id="formats" className="mx-auto mt-10 scroll-mt-28">
             <div className="grid gap-4 sm:grid-cols-2">
               <FormatCard
                 iconBg="from-amber-400 via-orange-400 to-rose-500"
@@ -639,7 +693,10 @@ export default function AboutPage() {
           <GradientDivider />
 
           {/* Trust & Privacy */}
-          <section id="trust" className="mx-auto mt-12 rounded-2xl border border-white/60 bg-white/90 p-6 backdrop-blur">
+          <section
+            id="trust"
+            className="mx-auto mt-12 rounded-2xl border border-white/60 bg-white/90 p-6 supports-[backdrop-filter]:backdrop-blur scroll-mt-28"
+          >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <div className="inline-grid h-10 w-10 place-items-center rounded-xl bg-ink-900/90 text-white">
@@ -665,7 +722,7 @@ export default function AboutPage() {
           </section>
 
           {/* Advanced FAQ */}
-          <section id="faq" className="mx-auto mt-12 max-w-5xl">
+          <section id="faq" className="mx-auto mt-12 max-w-5xl scroll-mt-28">
             <div className="mb-3 flex items-center gap-2">
               <Gift className="h-5 w-5 text-rose-600" aria-hidden />
               <h2 className="font-display text-xl">Frequently asked</h2>
@@ -674,9 +731,9 @@ export default function AboutPage() {
           </section>
 
           {/* CTA */}
-          <section id="cta" className="mx-auto mt-12 max-w-4xl text-center">
+          <section id="cta" className="mx-auto mt-12 max-w-4xl text-center scroll-mt-28">
             <motion.div {...fadeUp(0.02)}>
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/70 px-3 py-1 text-xs text-ink-700 backdrop-blur">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/70 px-3 py-1 text-xs text-ink-700 supports-[backdrop-filter]:backdrop-blur">
                 <Sparkles className="h-3.5 w-3.5 text-amber-500" aria-hidden />
                 Celebrate beautifully, every week • © {year}
               </div>
@@ -684,7 +741,7 @@ export default function AboutPage() {
                 <Link
                   href="/builder"
                   prefetch={false}
-                  className="inline-flex items-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow hover:opacity-95"
+                  className="inline-flex items-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 px-5 py-2.5 text-sm font-medium text-white shadow hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
                 >
                   <Wand2 className="mr-2 h-4 w-4" />
                   Start Building

@@ -7,7 +7,15 @@ import { sectionize } from "@/lib/festivals";
 import type { Festival } from "@/types/festival";
 import { motion, useReducedMotion } from "framer-motion";
 import { CalendarDays, MapPin, Wand2, Sparkles } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+
+/* -------------------------------- Props ---------------------------------- */
+type FestivalRailProps = {
+  /** Show skeleton placeholders while data is being fetched */
+  loading?: boolean;
+  /** How many skeleton cards to show per rail on desktop */
+  skeletonCount?: number;
+};
 
 /* ----------------------------- date utilities ----------------------------- */
 const IST = "Asia/Kolkata";
@@ -39,7 +47,7 @@ function daysUntilISO(iso: string): { label: string; days: number } {
   if (days === 0) label = "Today";
   else if (days === 1) label = "Tomorrow";
   else if (days > 1) label = `In ${days} days`;
-  else label = `${Math.abs(days)} days ago`;
+  else label = `${Math.abs(days)} day${Math.abs(days) > 1 ? "s" : ""} ago`;
 
   return { label, days };
 }
@@ -64,6 +72,38 @@ function useFinePointer() {
   return fine;
 }
 
+/* ----------------------------- Skeleton bits ------------------------------ */
+function Line({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`h-3 w-full rounded bg-ink-200/60 dark:bg-white/10 ${className}`}
+    />
+  );
+}
+
+function CardSkeleton() {
+  return (
+    <div
+      className="animate-pulse overflow-hidden rounded-2xl border border-white/70 bg-white/90 p-3 shadow-sm md:backdrop-blur"
+      role="status"
+      aria-label="Loading festival"
+    >
+      <div className="mb-2 aspect-[16/10] w-full overflow-hidden rounded-xl sm:aspect-[16/9]">
+        <div className="h-full w-full bg-ink-200/50 dark:bg-white/10" />
+      </div>
+      <div className="flex items-center gap-2">
+        <span className="inline-block h-4 w-4 rounded bg-ink-200/60 dark:bg-white/10" />
+        <Line className="w-24" />
+      </div>
+      <Line className="mt-2 h-4 w-3/4" />
+      <div className="mt-2 flex items-center justify-between">
+        <Line className="h-5 w-28" />
+        <Line className="h-4 w-10" />
+      </div>
+    </div>
+  );
+}
+
 /* --------------------------------- Card ---------------------------------- */
 type CardProps = Pick<
   Festival,
@@ -76,29 +116,36 @@ type CardProps = Pick<
 function Card(p: CardProps) {
   const prefersReducedMotion = useReducedMotion();
   const finePointer = useFinePointer();
-  const { label: relative, days } = daysUntilISO(p.date_iso);
+  const { label: relative } = daysUntilISO(p.date_iso);
   const when = whenLabel(p.date_iso);
   const region = p.region || "IN";
   const href = `/builder?festival=${encodeURIComponent(p.slug)}`;
 
-  const onMove = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (!finePointer) return;
-    const el = e.currentTarget;
-    const rect = el.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    el.style.setProperty("--x", `${x}%`);
-    el.style.setProperty("--y", `${y}%`);
-  }, [finePointer]);
+  // image ready -> subtle fade-in
+  const [ready, setReady] = useState(false);
 
-  const hoverLift = finePointer && !prefersReducedMotion ? { y: -3 } : undefined;
+  const onMove = useCallback(
+    (e: React.MouseEvent<HTMLAnchorElement>) => {
+      if (!finePointer) return;
+      const el = e.currentTarget;
+      const rect = el.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+      el.style.setProperty("--x", `${x}%`);
+      el.style.setProperty("--y", `${y}%`);
+    },
+    [finePointer]
+  );
+
+  const hoverLift =
+    finePointer && !prefersReducedMotion ? { y: -3 } : undefined;
 
   return (
     <Link
       href={href}
       aria-label={`Create invite for ${p.name} on ${when}`}
       prefetch={false}
-      className="group block"
+      className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-amber-400/60 rounded-2xl"
       onMouseMove={onMove}
       style={{ contain: "content" }} // isolate paints per card
     >
@@ -119,17 +166,24 @@ function Card(p: CardProps) {
 
         {/* media */}
         <div className="relative mb-2 w-full overflow-hidden rounded-xl aspect-[16/10] sm:aspect-[16/9]">
+          {!ready && (
+            <div className="absolute inset-0 animate-pulse bg-ink-200/50 dark:bg-white/10" />
+          )}
           {p.hero_image ? (
             <Image
               src={p.hero_image}
               alt={p.name}
               fill
-              sizes="(max-width: 640px) 72vw, (max-width: 768px) 58vw, (max-width: 1024px) 33vw, 20vw"
-              className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+              sizes="(max-width: 640px) 78vw, (max-width: 768px) 58vw, (max-width: 1024px) 33vw, 20vw"
+              className={`object-cover transition-transform duration-300 group-hover:scale-[1.03] ${
+                ready ? "opacity-100" : "opacity-0"
+              }`}
               priority={!!p.priority}
+              fetchPriority={p.priority ? "high" : "auto"}
               loading={p.priority ? undefined : "lazy"}
               decoding="async"
               draggable={false}
+              onLoadingComplete={() => setReady(true)}
             />
           ) : (
             <div className="absolute inset-0 bg-gradient-to-br from-amber-200 via-rose-200 to-violet-200" />
@@ -151,9 +205,7 @@ function Card(p: CardProps) {
           <CalendarDays className="h-3.5 w-3.5" aria-hidden />
           <span>{when}</span>
         </div>
-        <div className="mt-0.5 line-clamp-1 text-sm font-semibold">
-          {p.name}
-        </div>
+        <div className="mt-0.5 line-clamp-1 text-sm font-semibold">{p.name}</div>
 
         <div className="mt-2 flex items-center justify-between">
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-200">
@@ -178,13 +230,18 @@ function Card(p: CardProps) {
 }
 
 /* ----------------------------- Section header ---------------------------- */
-function SectionHeader({ title }: { title: string }) {
+function SectionHeader({ title, loading = false }: { title: string; loading?: boolean }) {
   return (
     <div className="flex items-center gap-2">
       <div className="inline-grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-tr from-amber-400 via-rose-400 to-violet-500 ring-1 ring-white/60" />
       <h2 className="font-display text-base font-semibold tracking-tight md:text-lg">
         {title}
       </h2>
+      {loading && (
+        <span className="ml-2 inline-flex items-center rounded-full bg-ink-50 px-2 py-0.5 text-[10px] text-ink-700 ring-1 ring-ink-200">
+          Loading…
+        </span>
+      )}
     </div>
   );
 }
@@ -198,15 +255,17 @@ function Section({
   items,
   testId,
   priorityCount = 2,
+  loading = false,
+  skeletonCount = 5,
 }: {
   title: string;
   items: CardProps[];
   testId: string;
   /** how many first cards should preload for perceived speed */
   priorityCount?: number;
+  loading?: boolean;
+  skeletonCount?: number;
 }) {
-  if (!items.length) return null;
-
   // Preload only a couple of cards per section for speed
   const prepared = useMemo(
     () =>
@@ -221,52 +280,64 @@ function Section({
     <section
       className="mt-8 first:mt-0"
       data-testid={testId}
+      aria-busy={loading}
+      aria-live="polite"
       style={{
         contentVisibility: "auto",
         containIntrinsicSize: "900px 600px",
       }}
     >
-      <SectionHeader title={title} />
+      <SectionHeader title={title} loading={loading} />
 
       {/* Mobile rail (snap) */}
       <div
         className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 sm:hidden"
         role="list"
+        aria-label={title}
         style={{
           WebkitMaskImage:
             "linear-gradient(90deg, transparent 0, black 12px, black calc(100% - 12px), transparent 100%)",
           maskImage:
             "linear-gradient(90deg, transparent 0, black 12px, black calc(100% - 12px), transparent 100%)",
-          msOverflowStyle: "none", // IE/Edge legacy
-          scrollbarWidth: "none", // Firefox
+          msOverflowStyle: "none",
+          scrollbarWidth: "none",
         } as React.CSSProperties}
       >
-        {/* Hide scrollbar on WebKit (inline style can't target pseudo, so use utility if you have one) */}
-        {prepared.map((f) => (
-          <div
-            key={f.slug}
-            className="snap-start shrink-0 basis-[78%] xs:basis-[62%]"
-            role="listitem"
-          >
-            <Card {...f} />
-          </div>
-        ))}
+        {(loading ? Array.from({ length: Math.min(6, skeletonCount) }) : prepared).map(
+          (f, idx) => (
+            <div
+              key={loading ? `sk-${idx}` : (f as CardProps).slug}
+              className="snap-start shrink-0 basis-[88%] xs:basis-[70%]"
+              role="listitem"
+            >
+              {loading ? <CardSkeleton /> : <Card {...(f as CardProps)} />}
+            </div>
+          )
+        )}
       </div>
 
       {/* Desktop grid */}
       <div className="mt-3 hidden grid-cols-2 gap-3 sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-        {prepared.map((f) => (
-          <Card key={f.slug} {...f} />
-        ))}
+        {(loading ? Array.from({ length: skeletonCount }) : prepared).map((f, i) =>
+          loading ? (
+            <CardSkeleton key={`desk-sk-${i}`} />
+          ) : (
+            <Card key={(f as CardProps).slug} {...(f as CardProps)} />
+          )
+        )}
       </div>
     </section>
   );
 }
 
 /* --------------------------------- Rail ---------------------------------- */
-export default function FestivalRail() {
+export default function FestivalRail({
+  loading = false,
+  skeletonCount = 5,
+}: FestivalRailProps) {
+  // If you already have data ready, sectionize immediately.
+  // If you're fetching client-side, pass loading={true} first then flip to false when data arrives.
   const { featured, week, nextMonth } = sectionize();
-  if (!featured.length && !week.length && !nextMonth.length) return null;
 
   const slim = (arr: Festival[]) =>
     arr.map((f) => ({
@@ -276,6 +347,9 @@ export default function FestivalRail() {
       hero_image: f.hero_image,
       region: f.region,
     }));
+
+  const nothing = !loading && !featured.length && !week.length && !nextMonth.length;
+  if (nothing) return null;
 
   return (
     <div className="relative mx-auto max-w-6xl px-4 py-8">
@@ -291,15 +365,25 @@ export default function FestivalRail() {
 
       <Section
         title="Featured festivals"
-        items={slim(featured)}
+        items={loading ? [] : slim(featured)}
         testId="rail-featured"
         priorityCount={3}
+        loading={loading}
+        skeletonCount={skeletonCount}
       />
-      <Section title="This week" items={slim(week)} testId="rail-week" />
+      <Section
+        title="This week"
+        items={loading ? [] : slim(week)}
+        testId="rail-week"
+        loading={loading}
+        skeletonCount={skeletonCount}
+      />
       <Section
         title="Next month"
-        items={slim(nextMonth)}
+        items={loading ? [] : slim(nextMonth)}
         testId="rail-next-month"
+        loading={loading}
+        skeletonCount={skeletonCount}
       />
     </div>
   );

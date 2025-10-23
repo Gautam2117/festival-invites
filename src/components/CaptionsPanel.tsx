@@ -1,7 +1,13 @@
 // src/components/CaptionsPanel.tsx
 "use client";
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, {
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+  useDeferredValue,
+} from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { getCaptions, type CaptionLang } from "@/lib/captions";
 import { regionalOneLiners } from "./caption-seeds";
@@ -31,12 +37,10 @@ const formalCompany = [
   "Warm wishes from our team this festive season.",
   "Celebrating traditions and togetherness — join us.",
 ];
-
 const warmFamily = [
   "Dil se khushiyan baatéin — ghar aaiye! ❤️",
   "Aapke bina mehfil adhuri hai — milte hain!",
 ];
-
 const friendlyPersonal = [
   "Scene banaao, party yahin hai! 🤩",
   "Bas aa jao, baaki sab hum sambhaal lenge. ✨",
@@ -51,7 +55,7 @@ const lengthFilters = [
 ] as const;
 
 function charCount(s: string) {
-  return [...s].length; // unicode-safe count
+  return [...s].length; // unicode-safe
 }
 
 function downloadTextFile(filename: string, content: string) {
@@ -71,7 +75,6 @@ async function copyToClipboard(text: string) {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
-    // Fallback
     const ta = document.createElement("textarea");
     ta.value = text;
     document.body.appendChild(ta);
@@ -82,15 +85,48 @@ async function copyToClipboard(text: string) {
   }
 }
 
-function shareToWhatsApp(text: string) {
+async function shareSmartText(text: string) {
+  try {
+    if (navigator.share) {
+      await navigator.share({ text, title: "Festival Invites" });
+      return true;
+    }
+  } catch {
+    /* ignore and fallback */
+  }
   const wa = `https://wa.me/?text=${encodeURIComponent(text)}`;
   window.open(wa, "_blank", "noopener");
+  return true;
+}
+
+/** Mulberry32 PRNG for stable shuffle */
+function mulberry32(seed: number) {
+  let t = seed >>> 0;
+  return function () {
+    t += 0x6d2b79f5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function seededShuffle<T>(input: T[], seed: number) {
+  const arr = [...input];
+  const rnd = mulberry32(seed || 1);
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
 /* ------------------------------- UI bits --------------------------------- */
 function Glow() {
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 -z-10"
+      style={{ contentVisibility: "auto", containIntrinsicSize: "1200px 800px" }}
+    >
       <div className="absolute -top-20 right-[-10%] h-[26rem] w-[26rem] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(255,193,7,0.16),transparent_60%)] blur-3xl" />
       <div className="absolute -bottom-24 left-[-12%] h-[22rem] w-[22rem] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(236,64,122,0.14),transparent_60%)] blur-3xl" />
     </div>
@@ -112,7 +148,7 @@ function SectionToggle({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between rounded-xl border border-white/60 bg-white/80 px-3 py-2 text-left text-sm font-medium text-ink-900 backdrop-blur"
+        className="flex w-full items-center justify-between rounded-xl border border-white/60 bg-white/80 px-3 py-2 text-left text-sm font-medium text-ink-900 supports-[backdrop-filter]:backdrop-blur focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
         aria-expanded={open}
       >
         <span className="inline-flex items-center gap-2">
@@ -151,8 +187,10 @@ function CaptionRow({ text }: { text: string }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="group flex items-start justify-between gap-3 rounded-xl border border-white/60 bg-white/90 p-3 shadow-sm backdrop-blur"
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.25 }}
+      className="group flex items-start justify-between gap-3 rounded-xl border border-white/60 bg-white/90 p-3 shadow-sm supports-[backdrop-filter]:backdrop-blur"
+      style={{ contentVisibility: "auto", containIntrinsicSize: "300px 80px" }}
     >
       <p className="max-w-[75%] text-sm text-ink-900 sm:max-w-none">{text}</p>
 
@@ -167,10 +205,10 @@ function CaptionRow({ text }: { text: string }) {
 
         <button
           type="button"
-          onClick={() => shareToWhatsApp(text)}
-          className="rounded-lg border border-ink-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-ink-900 hover:bg-white"
-          title="Share to WhatsApp"
-          aria-label="Share to WhatsApp"
+          onClick={() => shareSmartText(text)}
+          className="rounded-lg border border-ink-200 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-ink-900 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
+          title="Share"
+          aria-label="Share"
         >
           <Share2 className="h-3.5 w-3.5" />
         </button>
@@ -178,13 +216,13 @@ function CaptionRow({ text }: { text: string }) {
         <button
           type="button"
           onClick={onCopy}
-          className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition
-          ${
+          className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
             copied
               ? "bg-emerald-600 text-white"
               : "border border-ink-200 bg-white/80 text-ink-900 hover:bg-white"
           }`}
           aria-label="Copy caption"
+          aria-live="polite"
         >
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
           {copied ? "Copied" : "Copy"}
@@ -222,41 +260,44 @@ export default function CaptionsPanel({
     mr: [] as string[],
   };
 
-  // UI state
+  // UI state (persist length filter)
   const [q, setQ] = useState("");
+  const deferredQ = useDeferredValue(q); // debounce-y rendering
   const [lengthKey, setLengthKey] =
-    useState<(typeof lengthFilters)[number]["key"]>("all");
-  const [shufToken, setShufToken] = useState(0);
-  const activeMax = lengthFilters.find((f) => f.key === lengthKey)?.max ?? Infinity;
+    useState<(typeof lengthFilters)[number]["key"]>(() => {
+      if (typeof window === "undefined") return "all";
+      try {
+        return (localStorage.getItem("fi:cap:lengthKey") as any) || "all";
+      } catch {
+        return "all";
+      }
+    });
+  useEffect(() => {
+    try {
+      localStorage.setItem("fi:cap:lengthKey", lengthKey);
+    } catch {}
+  }, [lengthKey]);
+
+  const [shuffleSeed, setShuffleSeed] = useState(0);
+  const activeMax =
+    lengthFilters.find((f) => f.key === lengthKey)?.max ?? Infinity;
 
   const filtered = useMemo(() => {
-    let arr = [...baseCaptions];
-    if (q.trim()) {
-      const s = q.toLowerCase();
+    let arr = baseCaptions;
+    if (deferredQ.trim()) {
+      const s = deferredQ.toLowerCase();
       arr = arr.filter((c) => c.toLowerCase().includes(s));
     }
     arr = arr.filter((c) => charCount(c) <= activeMax);
-    // stable shuffle based on token to avoid reordering on unrelated state updates
-    if (shufToken > 0) {
-      // Fisher-Yates
-      const a = [...arr];
-      for (let i = a.length - 1; i > 0; i--) {
-        const j = (i + shufToken) % (i + 1);
-        [a[i], a[j]] = [a[j], a[i]];
-      }
-      return a;
-    }
-    return arr;
-  }, [baseCaptions, q, activeMax, shufToken]);
+    return shuffleSeed > 0 ? seededShuffle(arr, shuffleSeed) : arr;
+  }, [baseCaptions, deferredQ, activeMax, shuffleSeed]);
 
   const total = baseCaptions.length;
   const shown = filtered.length;
 
   const handleCopyAll = async () => {
     if (shown === 0) return;
-    const block = filtered.join("\n");
-    await copyToClipboard(block);
-    // simple toast
+    await copyToClipboard(filtered.join("\n"));
     alert("All visible captions copied!");
   };
 
@@ -266,10 +307,13 @@ export default function CaptionsPanel({
     downloadTextFile(`${nameSafe}-${lang}.txt`, filtered.join("\n"));
   };
 
-  const handleShuffle = () => setShufToken((t) => (t + 1) % 997);
+  const handleShuffle = () => setShuffleSeed((s) => (s + 17) % 1000003);
 
   return (
-    <section className="relative mt-8 rounded-2xl border border-white/60 bg-white/85 p-5 shadow-[0_10px_40px_rgba(0,0,0,0.08)] backdrop-blur-2xl">
+    <section
+      className="relative mt-8 rounded-2xl border border-white/60 bg-white/85 p-5 shadow-[0_10px_40px_rgba(0,0,0,0.08)] supports-[backdrop-filter]:backdrop-blur-2xl"
+      style={{ contentVisibility: "auto" }}
+    >
       <Glow />
 
       {/* Header */}
@@ -288,7 +332,7 @@ export default function CaptionsPanel({
           <button
             type="button"
             onClick={handleShuffle}
-            className="inline-flex items-center gap-1 rounded-lg border border-white/60 bg-white/90 px-3 py-1.5 text-xs font-medium text-ink-900 hover:bg-white"
+            className="inline-flex items-center gap-1 rounded-lg border border-white/60 bg-white/90 px-3 py-1.5 text-xs font-medium text-ink-900 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
             title="Shuffle suggestions"
           >
             <Shuffle className="h-3.5 w-3.5" />
@@ -297,7 +341,7 @@ export default function CaptionsPanel({
           <button
             type="button"
             onClick={handleCopyAll}
-            className="inline-flex items-center gap-1 rounded-lg bg-ink-900 px-3 py-1.5 text-xs font-medium text-white hover:opacity-95"
+            className="inline-flex items-center gap-1 rounded-lg bg-ink-900 px-3 py-1.5 text-xs font-medium text-white hover:opacity-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-ink-500/40"
             title="Copy all visible captions"
           >
             <Copy className="h-3.5 w-3.5" />
@@ -306,7 +350,7 @@ export default function CaptionsPanel({
           <button
             type="button"
             onClick={handleExportTxt}
-            className="inline-flex items-center gap-1 rounded-lg border border-white/60 bg-white/90 px-3 py-1.5 text-xs font-medium text-ink-900 hover:bg-white"
+            className="inline-flex items-center gap-1 rounded-lg border border-white/60 bg-white/90 px-3 py-1.5 text-xs font-medium text-ink-900 hover:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40"
             title="Export .txt"
           >
             <Download className="h-3.5 w-3.5" />
@@ -320,7 +364,7 @@ export default function CaptionsPanel({
         {/* Search */}
         <label
           htmlFor="caption-search"
-          className="relative flex items-center rounded-xl border border-white/60 bg-white/90 px-3 py-2 shadow-sm backdrop-blur"
+          className="relative flex items-center rounded-xl border border-white/60 bg-white/90 px-3 py-2 shadow-sm supports-[backdrop-filter]:backdrop-blur"
         >
           <Search className="mr-2 h-4 w-4 text-ink-600" aria-hidden />
           <input
@@ -330,6 +374,7 @@ export default function CaptionsPanel({
             placeholder="Search captions (e.g., blessings, party, family)"
             className="w-full bg-transparent text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none"
             aria-label="Search captions"
+            inputMode="search"
           />
           {q && (
             <button
@@ -349,8 +394,12 @@ export default function CaptionsPanel({
           )}
         </label>
 
-        {/* Length filter rail (mobile collapses) */}
-        <div className="flex items-center gap-2 overflow-x-auto">
+        {/* Length filter rail (accessible radiogroup) */}
+        <div
+          className="flex items-center gap-2 overflow-x-auto"
+          role="radiogroup"
+          aria-label="Filter by length"
+        >
           <span className="inline-flex items-center gap-1 text-xs text-ink-700">
             <Filter className="h-3.5 w-3.5" />
             Length
@@ -362,14 +411,14 @@ export default function CaptionsPanel({
                 <button
                   key={f.key}
                   type="button"
+                  role="radio"
+                  aria-checked={active}
                   onClick={() => setLengthKey(f.key)}
-                  className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ring-1 transition
-                  ${
+                  className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ring-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/40 ${
                     active
                       ? "bg-ink-900 text-white ring-white/60"
                       : "bg-white/85 text-ink-800 ring-white/60 hover:bg-white"
                   }`}
-                  aria-pressed={active}
                 >
                   {f.label}
                 </button>
@@ -386,9 +435,16 @@ export default function CaptionsPanel({
         } md:grid-cols-2`}
       >
         {filtered.map((c, i) => (
-          <CaptionRow key={`${i}-${shufToken}`} text={c} />
+          <CaptionRow key={`${i}-${shuffleSeed}-${c.slice(0, 8)}`} text={c} />
         ))}
       </div>
+
+      {/* Empty state */}
+      {filtered.length === 0 && (
+        <div className="mt-4 rounded-xl border border-white/60 bg-white/90 p-4 text-center text-sm text-ink-700 supports-[backdrop-filter]:backdrop-blur">
+          No captions found. Try a different keyword or relax the length filter.
+        </div>
+      )}
 
       {/* Tones (collapsible) */}
       <SectionToggle title="Suggested tones" defaultOpen={false}>
@@ -399,7 +455,7 @@ export default function CaptionsPanel({
         </div>
       </SectionToggle>
 
-      {/* Regionals (collapsible, only if present) */}
+      {/* Regionals (collapsible) */}
       {(regional.ta.length || regional.bn.length || regional.mr.length) > 0 && (
         <SectionToggle title="Regional one-liners" defaultOpen={false}>
           <div className="grid gap-3 md:grid-cols-3">
@@ -437,7 +493,7 @@ function CaptionBucket({
       </div>
       <div className="grid gap-2">
         {items.map((line, idx) => (
-          <CaptionRow key={`${title}-${idx}`} text={line} />
+          <CaptionRow key={`${title}-${idx}-${line.slice(0, 6)}`} text={line} />
         ))}
       </div>
     </div>

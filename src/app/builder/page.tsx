@@ -16,10 +16,11 @@ import {
   useState,
   PropsWithChildren,
   JSX,
+  MutableRefObject,
 } from "react";
 import { z } from "zod";
 import { Player } from "@remotion/player";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   Sparkles,
   Image as ImageIcon,
@@ -71,9 +72,10 @@ function Card(props: PropsWithChildren<{ className?: string }>) {
   return (
     <div
       className={
-        "rounded-2xl border border-white/60 bg-white/85 md:backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] " +
+        "rounded-2xl border border-white/60 bg-white/90 supports-[backdrop-filter]:md:backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] " +
         (props.className || "")
       }
+      style={{ contentVisibility: "auto", containIntrinsicSize: "900px 800px" }}
     >
       {props.children}
     </div>
@@ -96,7 +98,7 @@ function Section({
     <details
       id={id}
       open={defaultOpen}
-      className="group rounded-2xl border border-white/60 bg-white/90 md:backdrop-blur-xl"
+      className="group rounded-2xl border border-white/60 bg-white/95 supports-[backdrop-filter]:md:backdrop-blur-xl scroll-mt-24"
     >
       <summary className="list-none select-none cursor-pointer px-5 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -127,7 +129,7 @@ function AnchorButton({
       className={`text-sm rounded-xl px-3 py-2 inline-flex items-center justify-center transition-all ${
         active
           ? "bg-ink-900 text-white"
-          : "bg-white/85 text-ink-800 hover:bg-white"
+          : "bg-white/90 text-ink-800 hover:bg-white"
       } border border-white/60 shadow-sm`}
     >
       {label}
@@ -146,6 +148,39 @@ function useQueryParam(name: string) {
     setVal(usp.get(name) || "");
   }, [name]);
   return val;
+}
+
+/* --------------------------------------------- */
+/* Pointer + viewport helpers                     */
+/* --------------------------------------------- */
+function useFinePointer() {
+  const [fine, setFine] = useState(false);
+  useEffect(() => {
+    if ("matchMedia" in window) {
+      setFine(window.matchMedia("(pointer:fine)").matches);
+    }
+  }, []);
+  return fine;
+}
+
+function useInViewport<T extends Element>(
+  ref: MutableRefObject<T | null>,
+  rootMargin = "0px"
+) {
+  const [inView, setInView] = useState(true);
+  useEffect(() => {
+    if (!ref.current || !("IntersectionObserver" in window)) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const e = entries[0];
+        setInView(!!e?.isIntersecting);
+      },
+      { root: null, rootMargin, threshold: 0.1 }
+    );
+    obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, [ref, rootMargin]);
+  return inView;
 }
 
 /* --------------------------------------------- */
@@ -308,6 +343,9 @@ function shortId(len = 8) {
 /* Inner page                                    */
 /* --------------------------------------------- */
 function BuilderPageInner() {
+  const prefersReducedMotion = useReducedMotion();
+  const finePointer = useFinePointer();
+
   const festivalSlugQP = useQueryParam("festival");
   const directTemplateQP = useQueryParam("template");
 
@@ -350,7 +388,6 @@ function BuilderPageInner() {
   const [exportingWhich, setExportingWhich] = useState<null | "free" | "hd">(
     null
   );
-  const [rzReady, setRzReady] = useState(false);
   const exporting = exportingWhich !== null;
 
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
@@ -383,8 +420,7 @@ function BuilderPageInner() {
   const [musicVolume, setMusicVolume] = useState<number>(autoPreset.volume);
   const musicFromCurated = curatedMap[trackId] || "";
   const musicCandidate =
-    customMusic ??
-    (trackId === "auto"
+    customMusic ?? (trackId === "auto"
       ? autoPreset.file
       : trackId === "none"
       ? null
@@ -410,6 +446,11 @@ function BuilderPageInner() {
   const wmOpacity = 0.18;
   const [renderPct, setRenderPct] = useState<number | null>(null);
   const [etaText, setEtaText] = useState<string | null>(null);
+
+  // load Razorpay script in the background (do NOT disable the button until loaded)
+  useEffect(() => {
+    loadRazorpay().catch(() => {});
+  }, []);
 
   const syncDefaults = (slug: string, lang: Lang) => {
     const next = getDefaults(slug, lang);
@@ -530,7 +571,6 @@ function BuilderPageInner() {
   async function handlePayAndExport() {
     try {
       await loadRazorpay();
-      setRzReady(true);
       if (!window.Razorpay)
         throw new Error("Payment is loading. Please try again in a moment.");
 
@@ -911,11 +951,19 @@ function BuilderPageInner() {
   const tierPreview: "free" | "hd" = paid ? "hd" : "free";
 
   /* --------------------------------------------- */
+  /* Preview visibility + aspect                   */
+  /* --------------------------------------------- */
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const previewInView = useInViewport(previewRef, "100px");
+  const videoAspect = "aspect-[9/16]";
+  const imageAspect = "aspect-[1/1]";
+
+  /* --------------------------------------------- */
   /* UI                                            */
   /* --------------------------------------------- */
   return (
     <>
-      <DecorativeBG />
+      <DecorativeBG intensity="subtle" />
 
       {/* Download toast */}
       {downloadUrl && (
@@ -926,7 +974,7 @@ function BuilderPageInner() {
           role="status"
           aria-live="polite"
         >
-          <div className="max-w-3xl w-full rounded-2xl border border-white/50 bg-white/90 md:backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="max-w-3xl w-full rounded-2xl border border-white/50 bg-white/90 supports-[backdrop-filter]:md:backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.15)] p-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="grid place-items-center h-10 w-10 rounded-xl bg-gradient-to-tr from-emerald-400 to-lime-400 text-white shadow">
                 <CheckCircle2 className="h-5 w-5" />
@@ -936,7 +984,7 @@ function BuilderPageInner() {
                   Your file is ready
                 </div>
                 <div className="text-ink-700">
-                  If the download did not start, use the buttons.
+                  If the download didn’t start, use the buttons.
                 </div>
               </div>
             </div>
@@ -961,10 +1009,7 @@ function BuilderPageInner() {
               <button
                 type="button"
                 onClick={() =>
-                  shareToWhatsApp(
-                    publicUrl || downloadUrl!,
-                    "Here is my invite:"
-                  )
+                  shareToWhatsApp(publicUrl || downloadUrl!, "Here is my invite:")
                 }
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
                 title="WhatsApp"
@@ -988,14 +1033,20 @@ function BuilderPageInner() {
         </motion.div>
       )}
 
-      <main className="mx-auto max-w-7xl px-4 py-10">
+      <main
+        className="mx-auto max-w-7xl px-4 py-10 overscroll-contain"
+        // pad for the mobile action bar + safe area so content isn’t hidden
+        style={{
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 72px)",
+        }}
+      >
         {/* Header */}
         <motion.header
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/90 px-3 py-1 text-sm shadow-sm md:backdrop-blur">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/90 px-3 py-1 text-sm shadow-sm supports-[backdrop-filter]:md:backdrop-blur">
             <Sparkles className="h-4 w-4 text-brand-600" />
             <span className="font-medium text-ink-700">
               Festive invite builder
@@ -1251,7 +1302,7 @@ function BuilderPageInner() {
               defaultOpen={false}
             >
               <div className="grid gap-3 sm:grid-cols-[1fr_auto] items-center">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-3">
                   <Music2 className="h-4 w-4 text-ink-700" />
                   <select
                     value={trackId}
@@ -1583,16 +1634,10 @@ function BuilderPageInner() {
                 <button
                   type="button"
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 px-4 py-2 text-white text-sm font-medium shadow hover:opacity-95"
-                  onClick={() =>
-                    paid ? doExportLambda("hd") : handlePayAndExport()
-                  }
-                  disabled={exporting || !rzReady}
+                  onClick={() => (paid ? doExportLambda("hd") : handlePayAndExport())}
+                  disabled={exporting}
                   aria-busy={exportingWhich === "hd"}
-                  title={
-                    !rzReady
-                      ? "Loading payment"
-                      : "HD, no watermark, premium effects"
-                  }
+                  title="HD, no watermark, premium effects"
                   aria-label="Export HD without watermark"
                 >
                   {exportingWhich === "hd" ? (
@@ -1777,90 +1822,106 @@ function BuilderPageInner() {
                 </div>
               </div>
 
-              <div className="rounded-xl overflow-hidden border bg-white relative shadow-sm">
+              <div
+                ref={previewRef}
+                className={`rounded-xl overflow-hidden border bg-white relative shadow-sm ${mode === "video" ? videoAspect : imageAspect}`}
+              >
+                {/* accent wash */}
                 <div
-                  className={`pointer-events-none absolute inset-0 opacity-30 bg-gradient-to-tr ${meta.accent}`}
+                  className={`pointer-events-none absolute inset-0 opacity-25 bg-gradient-to-tr ${meta.accent}`}
                   aria-hidden
                 />
-                <div className="relative">
-                  {mode === "video" ? (
-                    <Player
-                      key={playerKey}
-                      component={FestivalIntro}
-                      autoPlay
-                      loop
-                      durationInFrames={paid ? 180 : 150}
-                      fps={30}
-                      compositionWidth={720}
-                      compositionHeight={1280}
-                      inputProps={{
-                        title,
-                        names,
-                        date,
-                        venue,
-                        bg: bgForPlayer,
-                        music: musicForPlayer,
-                        musicVolume,
-                        tier: paid ? "hd" : "free",
-                        watermark: !paid,
-                        watermarkStrategy: !paid ? wmStrategy : "ribbon",
-                        wmSeed,
-                        wmText,
-                        wmOpacity,
-                        isWish,
-                      }}
-                      acknowledgeRemotionLicense
-                      style={{
-                        width: "100%",
-                        height: 520,
-                        background: "transparent",
-                      }}
-                    />
+                {/* mount the player only when visible to save CPU on phones */}
+                <div className="relative w-full h-full">
+                  {previewInView ? (
+                    mode === "video" ? (
+                      <Player
+                        key={playerKey}
+                        component={FestivalIntro}
+                        autoPlay={!prefersReducedMotion}
+                        loop
+                        controls={finePointer}
+                        durationInFrames={paid ? 180 : 150}
+                        fps={30}
+                        compositionWidth={720}
+                        compositionHeight={1280}
+                        inputProps={{
+                          title,
+                          names,
+                          date,
+                          venue,
+                          bg: bgForPlayer,
+                          music: musicForPlayer,
+                          musicVolume,
+                          tier: paid ? "hd" : "free",
+                          watermark: !paid,
+                          watermarkStrategy: !paid ? wmStrategy : "ribbon",
+                          wmSeed,
+                          wmText,
+                          wmOpacity,
+                          isWish,
+                        }}
+                        acknowledgeRemotionLicense
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          background: "transparent",
+                        }}
+                      />
+                    ) : (
+                      <Player
+                        key={playerKey}
+                        component={ImageCard}
+                        autoPlay={!prefersReducedMotion}
+                        loop
+                        controls={finePointer}
+                        durationInFrames={120}
+                        fps={30}
+                        compositionWidth={1080}
+                        compositionHeight={1080}
+                        inputProps={{
+                          title,
+                          names,
+                          date,
+                          venue,
+                          bg: bgForPlayer,
+                          tier: paid ? "hd" : "free",
+                          watermark: !paid,
+                          watermarkStrategy: !paid ? wmStrategy : "ribbon",
+                          wmSeed,
+                          wmText,
+                          wmOpacity,
+                          isWish,
+                        }}
+                        acknowledgeRemotionLicense
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          background: "transparent",
+                        }}
+                      />
+                    )
                   ) : (
-                    <Player
-                      key={playerKey}
-                      component={ImageCard}
-                      autoPlay
-                      loop
-                      durationInFrames={120}
-                      fps={30}
-                      compositionWidth={1080}
-                      compositionHeight={1080}
-                      inputProps={{
-                        title,
-                        names,
-                        date,
-                        venue,
-                        bg: bgForPlayer,
-                        tier: paid ? "hd" : "free",
-                        watermark: !paid,
-                        watermarkStrategy: !paid ? wmStrategy : "ribbon",
-                        wmSeed,
-                        wmText,
-                        wmOpacity,
-                        isWish,
-                      }}
-                      acknowledgeRemotionLicense
-                      style={{
-                        width: "100%",
-                        height: 520,
-                        background: "transparent",
-                      }}
-                    />
+                    // lightweight poster while offscreen
+                    <div className="absolute inset-0 grid place-items-center">
+                      <div className="rounded-lg border bg-white/90 px-3 py-1 text-xs text-ink-800">
+                        Preview paused to save battery
+                      </div>
+                    </div>
                   )}
                 </div>
+
+                {(bgStatus === "loading" || musicStatus === "loading") && (
+                  <span className="absolute right-3 top-3 rounded-full bg-black/60 text-white px-2 py-0.5 text-xs">
+                    Updating preview…
+                  </span>
+                )}
               </div>
 
               <p className="mt-3 text-sm text-gray-700">
                 Free preview shows an anti-crop watermark. HD removes it and
                 adds premium effects.
               </p>
-
-              {(bgStatus === "loading" || musicStatus === "loading") && (
-                <span className="absolute right-3 top-3 rounded-full bg-black/60 text-white px-2 py-0.5 text-xs">
-                  Updating preview…
-                </span>
-              )}
 
               {/* Social preview studio when PNG is exported */}
               {downloadUrl && downloadName.endsWith(".png") && (
@@ -1877,7 +1938,10 @@ function BuilderPageInner() {
       </main>
 
       {/* Mobile action bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-white/60 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] px-3 py-2 sm:hidden">
+      <div
+        className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-white/60 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] px-3 py-2 sm:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
         <div className="flex items-center justify-between gap-2">
           <button
             onClick={() => doExportLambda("free")}
@@ -1889,7 +1953,7 @@ function BuilderPageInner() {
           </button>
           <button
             onClick={() => (paid ? doExportLambda("hd") : handlePayAndExport())}
-            disabled={exporting || !rzReady}
+            disabled={exporting}
             className="text-[13px] px-3 py-2 rounded-lg bg-indigo-600 text-white"
             aria-label="HD export"
           >

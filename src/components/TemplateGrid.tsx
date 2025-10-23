@@ -3,7 +3,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { templates } from "@/templates";
 import { Search, Sparkles, Filter, X } from "lucide-react";
@@ -16,6 +16,15 @@ type T = {
   thumbnail: string;
   languages?: string[];
   accent?: string; // e.g. "from-amber-400 via-rose-400 to-indigo-500"
+};
+
+type TemplateGridProps = {
+  /** Show shimmering placeholders (useful while fetching templates server-side) */
+  loading?: boolean;
+  /** How many skeleton cards to render on desktop */
+  skeletonCount?: number;
+  /** How many skeleton cards to render on mobile rail */
+  skeletonRailCount?: number;
 };
 
 const fadeUp = (i = 0) => ({
@@ -40,7 +49,7 @@ function FestiveGlow() {
 function useFinePointer() {
   const [fine, setFine] = useState(false);
   useEffect(() => {
-    if ("matchMedia" in window) {
+    if (typeof window !== "undefined" && "matchMedia" in window) {
       setFine(window.matchMedia("(pointer: fine)").matches);
     }
   }, []);
@@ -52,25 +61,67 @@ function LangChip({
   label,
   active,
   onClick,
+  disabled,
 }: {
   label: string;
   active: boolean;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium ring-1 transition
       ${
         active
           ? "bg-ink-900 text-white ring-white/60"
           : "bg-white/90 text-ink-800 ring-white/60 hover:bg-white"
-      }`}
+      } disabled:opacity-50`}
       aria-pressed={active}
     >
       {label}
     </button>
+  );
+}
+
+/* ------------------------------- Skeletons -------------------------------- */
+function Line({ className = "" }: { className?: string }) {
+  return (
+    <div className={`h-3 w-full rounded bg-ink-200/60 dark:bg-white/10 ${className}`} />
+  );
+}
+
+function ChipSkeleton() {
+  return <div className="h-6 w-16 rounded-full bg-ink-200/60 dark:bg-white/10" />;
+}
+
+function CardSkeleton() {
+  return (
+    <div
+      className="animate-pulse rounded-2xl bg-gradient-to-br from-ink-50 to-white p-[1px] dark:from-zinc-800/40 dark:to-zinc-800/10"
+      role="status"
+      aria-label="Loading template"
+    >
+      <article className="overflow-hidden rounded-[14px] bg-white/92 shadow-sm ring-1 ring-black/5 md:backdrop-blur dark:bg-zinc-900/60">
+        <div className="relative aspect-[16/9] w-full">
+          <div className="absolute inset-0 bg-ink-200/60 dark:bg-white/10" />
+        </div>
+        <div className="p-4">
+          <Line className="h-4 w-3/4" />
+          <div className="mt-3 flex gap-2">
+            <div className="h-5 w-14 rounded-full bg-ink-200/60 dark:bg-white/10" />
+            <div className="h-5 w-10 rounded-full bg-ink-200/60 dark:bg-white/10" />
+          </div>
+          <div className="mt-3 h-px w-full bg-ink-200/60 dark:bg-white/10" />
+          <div className="mt-3 flex items-center justify-between">
+            <Line className="w-28" />
+            <Line className="w-16" />
+          </div>
+        </div>
+      </article>
+    </div>
   );
 }
 
@@ -87,6 +138,7 @@ function TemplateCard({
   finePointer: boolean;
 }) {
   const prefersReducedMotion = useReducedMotion();
+  const [ready, setReady] = useState(false);
   const accent = t.accent || "from-amber-400 via-rose-400 to-indigo-500";
   const hoverLift =
     finePointer && !prefersReducedMotion ? { y: -3 } : undefined;
@@ -96,7 +148,7 @@ function TemplateCard({
       href={`/builder?template=${t.slug}`}
       className="group relative block focus:outline-none"
       aria-label={`Open ${t.title} template`}
-      prefetch={false} // avoids heavy route prefetch on mobile
+      prefetch={false}
       style={{ contain: "content" }} // localize paints
     >
       <motion.div
@@ -107,23 +159,30 @@ function TemplateCard({
           ring-0 ring-offset-2 ring-offset-white
           group-focus-visible:ring-4 group-focus-visible:ring-amber-500/40`}
       >
-        <article className="relative overflow-hidden rounded-[14px] bg-white/92 shadow-sm ring-1 ring-black/5 md:backdrop-blur">
+        <article className="relative overflow-hidden rounded-[14px] bg-white/92 shadow-sm ring-1 ring-black/5 md:backdrop-blur dark:bg-zinc-900/60">
           {/* Media */}
           <div className="relative aspect-[16/9] w-full">
             {/* Subtle wash behind image */}
             <div
               className={`pointer-events-none absolute inset-0 bg-gradient-to-tr ${accent} opacity-[0.12]`}
             />
+            {!ready && (
+              <div className="absolute inset-0 animate-pulse bg-ink-200/60 dark:bg-white/10" />
+            )}
             <Image
               src={t.thumbnail}
               alt={t.title}
               fill
               priority={priority}
+              fetchPriority={priority ? "high" : "auto"}
               loading={priority ? undefined : "lazy"}
               decoding="async"
               sizes="(max-width:640px) 84vw, (max-width:1024px) 45vw, 30vw"
-              className="object-cover transition-transform duration-400 group-hover:scale-[1.03]"
+              className={`object-cover transition-transform duration-400 group-hover:scale-[1.03] ${
+                ready ? "opacity-100" : "opacity-0"
+              }`}
               draggable={false}
+              onLoadingComplete={() => setReady(true)}
             />
             {/* Bottom fade */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/35 to-transparent" />
@@ -184,7 +243,7 @@ function TemplateCard({
             )}
 
             {/* Divider shimmer */}
-            <div className="mt-3 h-px w-full overflow-hidden rounded-full bg-gradient-to-r from-transparent via-ink-200 to-transparent" />
+            <div className="mt-3 h-px w-full overflow-hidden rounded-full bg-gradient-to-r from-transparent via-ink-200 to-transparent dark:via-white/10" />
 
             {/* Footer row */}
             <div className="mt-2 flex items-center justify-between text-[11px] text-ink-700">
@@ -202,7 +261,7 @@ function TemplateCard({
           </div>
 
           {/* Soft ring */}
-          <div className="pointer-events-none absolute inset-0 rounded-[14px] ring-1 ring-black/5" />
+          <div className="pointer-events-none absolute inset-0 rounded-[14px] ring-1 ring-black/5 dark:ring-white/10" />
         </article>
       </motion.div>
     </Link>
@@ -210,7 +269,11 @@ function TemplateCard({
 }
 
 /* --------------------------------- Main ----------------------------------- */
-export default function TemplateGrid() {
+export default function TemplateGrid({
+  loading = false,
+  skeletonCount = 8,
+  skeletonRailCount = 4,
+}: TemplateGridProps) {
   const finePointer = useFinePointer();
 
   const [query, setQuery] = useState("");
@@ -228,6 +291,7 @@ export default function TemplateGrid() {
   }, []);
 
   const list = useMemo(() => {
+    if (loading) return [] as T[];
     let arr = templates as T[];
 
     if (lang) arr = arr.filter((t) => t.languages?.includes(lang));
@@ -242,7 +306,7 @@ export default function TemplateGrid() {
       );
     }
     return arr;
-  }, [deferredQuery, lang]);
+  }, [deferredQuery, lang, loading]);
 
   const count = list.length;
 
@@ -255,6 +319,7 @@ export default function TemplateGrid() {
       id="templates"
       className="relative mx-auto max-w-6xl px-4 pb-20"
       style={{ contentVisibility: "auto", containIntrinsicSize: "1200px 900px" }}
+      aria-busy={loading}
     >
       <FestiveGlow />
 
@@ -281,7 +346,7 @@ export default function TemplateGrid() {
           >
             See all
             <svg width="16" height="16" viewBox="0 0 24 24" className="opacity-70" aria-hidden>
-              <path fill="currentColor" d="M8.59 16.59L13.17 12L8.59 7.41L10 6l6 6l-6 6z" />
+              <path fill="currentColor" d="M8.59 16.59L13.17 12L8.59 7.41L10 6l6 6-6 6z" />
             </svg>
           </Link>
         </div>
@@ -303,8 +368,9 @@ export default function TemplateGrid() {
             className="w-full bg-transparent text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none"
             aria-label="Search templates"
             enterKeyHint="search"
+            disabled={loading}
           />
-          {query && (
+          {query && !loading && (
             <button
               type="button"
               onClick={() => setQuery("")}
@@ -321,9 +387,10 @@ export default function TemplateGrid() {
         <button
           type="button"
           onClick={() => setShowFilters((s) => !s)}
-          className="flex items-center justify-center gap-2 rounded-xl border border-white/60 bg-white/95 px-3 py-2 text-sm text-ink-900 shadow-sm md:backdrop-blur sm:hidden"
+          className="flex items-center justify-center gap-2 rounded-xl border border-white/60 bg-white/95 px-3 py-2 text-sm text-ink-900 shadow-sm md:backdrop-blur sm:hidden disabled:opacity-50"
           aria-expanded={showFilters}
           aria-controls="language-toolbar"
+          disabled={loading}
         >
           <Filter className="h-4 w-4" />
           Filters
@@ -345,10 +412,26 @@ export default function TemplateGrid() {
             "linear-gradient(90deg, transparent 0, black 8px, black calc(100% - 8px), transparent 100%)",
         } as React.CSSProperties}
       >
-        <LangChip label="All" active={!lang} onClick={() => setLang(null)} />
-        {languages.map((l) => (
-          <LangChip key={l} label={l} active={lang === l} onClick={() => setLang(l)} />
-        ))}
+        {loading ? (
+          <>
+            <ChipSkeleton />
+            <ChipSkeleton />
+            <ChipSkeleton />
+            <ChipSkeleton />
+          </>
+        ) : (
+          <>
+            <LangChip label="All" active={!lang} onClick={() => setLang(null)} />
+            {languages.map((l) => (
+              <LangChip
+                key={l}
+                label={l}
+                active={lang === l}
+                onClick={() => setLang(l)}
+              />
+            ))}
+          </>
+        )}
       </div>
 
       {/* Results meta */}
@@ -357,16 +440,25 @@ export default function TemplateGrid() {
         aria-live="polite"
       >
         <Sparkles className="h-4 w-4 text-amber-500" aria-hidden />
-        Showing <strong className="mx-1">{count}</strong> template{count !== 1 ? "s" : ""}{" "}
-        {lang ? (
+        {loading ? (
+          <span className="inline-flex items-center gap-2">
+            <span className="h-3 w-16 animate-pulse rounded bg-ink-200/60 dark:bg-white/10" />
+            loading…
+          </span>
+        ) : (
           <>
-            in{" "}
-            <span className="ml-1 inline-flex items-center rounded-full bg-ink-900 px-2 py-0.5 text-[11px] font-medium text-white">
-              {lang}
-            </span>
+            Showing <strong className="mx-1">{count}</strong> template{count !== 1 ? "s" : ""}{" "}
+            {lang ? (
+              <>
+                in{" "}
+                <span className="ml-1 inline-flex items-center rounded-full bg-ink-900 px-2 py-0.5 text-[11px] font-medium text-white">
+                  {lang}
+                </span>
+              </>
+            ) : null}
+            {query ? <span className="ml-1 opacity-80">for “{query}”</span> : null}
           </>
-        ) : null}
-        {query ? <span className="ml-1 opacity-80">for “{query}”</span> : null}
+        )}
       </div>
 
       {/* Mobile rail (snap) */}
@@ -383,14 +475,21 @@ export default function TemplateGrid() {
             scrollbarWidth: "none",
           } as React.CSSProperties}
         >
-          {list.map((t, i) => (
-            <div key={t.id} className="snap-start shrink-0 basis-[84%]" role="listitem">
-              <TemplateCard
-                t={t}
-                i={i}
-                finePointer={finePointer}
-                priority={i < PRIORITY_MOBILE}
-              />
+          {(loading
+            ? Array.from({ length: skeletonRailCount })
+            : list
+          ).map((item: any, i: number) => (
+            <div key={loading ? `skm-${i}` : item.id} className="snap-start shrink-0 basis-[84%]" role="listitem">
+              {loading ? (
+                <CardSkeleton />
+              ) : (
+                <TemplateCard
+                  t={item as T}
+                  i={i}
+                  finePointer={finePointer}
+                  priority={i < PRIORITY_MOBILE}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -398,22 +497,26 @@ export default function TemplateGrid() {
 
       {/* Desktop grid */}
       <div
-        className="hidden grid-cols-2 gap-6 sm:grid lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4"
+        className="hidden grid-cols-2 gap-6 sm:grid lg:grid-cols-3 2xl:grid-cols-4"
         style={{ contentVisibility: "auto", containIntrinsicSize: "900px 800px" }}
       >
-        {list.map((t, i) => (
-          <TemplateCard
-            key={t.id}
-            t={t}
-            i={i}
-            finePointer={finePointer}
-            priority={i < PRIORITY_DESKTOP}
-          />
-        ))}
+        {(loading ? Array.from({ length: skeletonCount }) : list).map((t: any, i) =>
+          loading ? (
+            <CardSkeleton key={`sk-${i}`} />
+          ) : (
+            <TemplateCard
+              key={(t as T).id}
+              t={t as T}
+              i={i}
+              finePointer={finePointer}
+              priority={i < PRIORITY_DESKTOP}
+            />
+          )
+        )}
       </div>
 
       {/* Empty state */}
-      {list.length === 0 && (
+      {!loading && list.length === 0 && (
         <div className="mt-8 rounded-2xl border border-white/60 bg-white/95 p-6 text-center text-sm text-ink-700 md:backdrop-blur">
           No templates found. Try a different search or language.
         </div>

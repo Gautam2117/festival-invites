@@ -1,6 +1,14 @@
+// src/components/MergeNames.tsx
 "use client";
 
-import React, { useMemo, useRef, useState, useCallback, useEffect } from "react";
+import React, {
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+  useEffect,
+  useId,
+} from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import Papa from "papaparse";
 import JSZip from "jszip";
@@ -64,6 +72,8 @@ function interpolate(template: string | undefined, name: string) {
   return template.replace(/\{name\}/gi, name || "");
 }
 
+const CONCURRENCY = 4;
+
 /* ------------------------------ Main Component --------------------------- */
 
 export default function MergeNames({
@@ -76,6 +86,7 @@ export default function MergeNames({
   isWish = false,
 }: Props) {
   const prefersReduced = useReducedMotion();
+  const dropDescId = useId();
 
   const [rows, setRows] = useState<Row[]>([]);
   const [nameCol, setNameCol] = useState<string>("name");
@@ -92,6 +103,7 @@ export default function MergeNames({
 
   const [isDragging, setDragging] = useState(false);
   const [showToast, setShowToast] = useState<string | null>(null);
+  const [zipPct, setZipPct] = useState<number>(0);
 
   const canceledRef = useRef(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -116,10 +128,10 @@ export default function MergeNames({
 
   /* ------------------------------ CSV Parsing ---------------------------- */
 
-  const parseCSV = useCallback((file: File) => {
+  const parseCSVText = useCallback((text: string) => {
     setError(null);
     setStatus("parsing");
-    Papa.parse<Row>(file, {
+    Papa.parse<Row>(text, {
       header: true,
       skipEmptyLines: true,
       complete: (res) => {
@@ -138,15 +150,75 @@ export default function MergeNames({
         if (filtered[0]) {
           const guess =
             Object.keys(filtered[0]).find((k) => /name/i.test(k)) || "name";
-          setNameCol(guess);
+          setNameCol((prev) => prev || guess);
+          // persist choice per template for convenience
+          try {
+            localStorage.setItem(
+              `fi:merge:${templateSlug}:nameCol`,
+              guess.toLowerCase()
+            );
+          } catch {}
+        } else {
+          setError("No rows detected in CSV.");
         }
       },
-      error: (err) => {
+      error: (err: { message: any; }) => {
         setError(err.message || "CSV parse failed");
         setStatus("error");
       },
     });
-  }, []);
+  }, [templateSlug]);
+
+  const parseCSV = useCallback(
+    (file: File) => {
+      setError(null);
+      setStatus("parsing");
+
+      // Guard: surprisingly large files
+      if (file.size > 8 * 1024 * 1024) {
+        setError("CSV is too large (max ~8MB). Split your list and retry.");
+        setStatus("error");
+        return;
+      }
+
+      Papa.parse<Row>(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (res) => {
+          const data = (res.data || []).map((r: any) => {
+            const out: Row = {};
+            Object.keys(r || {}).forEach((k) => {
+              if (!k) return;
+              out[k.trim().toLowerCase()] = String(r[k] ?? "").trim();
+            });
+            return out;
+          });
+          const filtered = data.filter((r) => Object.keys(r).length > 0);
+          setRows(filtered);
+          setStatus("idle");
+
+          if (filtered[0]) {
+            const guess =
+              Object.keys(filtered[0]).find((k) => /name/i.test(k)) || "name";
+            setNameCol((prev) => prev || guess);
+            try {
+              localStorage.setItem(
+                `fi:merge:${templateSlug}:nameCol`,
+                guess.toLowerCase()
+              );
+            } catch {}
+          } else {
+            setError("No rows detected in CSV.");
+          }
+        },
+        error: (err) => {
+          setError(err.message || "CSV parse failed");
+          setStatus("error");
+        },
+      });
+    },
+    [templateSlug]
+  );
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
@@ -160,40 +232,64 @@ export default function MergeNames({
     [parseCSV]
   );
 
+  const onPaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const txt = e.clipboardData?.getData("text");
+      if (!txt) return;
+      // Heuristic: looks like CSV if it has commas/newlines and a header-ish first line
+      if (/,/.test(txt) && /\n/.test(txt)) {
+        e.preventDefault();
+        parseCSVText(txt);
+        setShowToast("CSV pasted");
+        setTimeout(() => setShowToast(null), 1000);
+      }
+    },
+    [parseCSVText]
+  );
+
+  // hydrate nameCol from memory (per template)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`fi:merge:${templateSlug}:nameCol`);
+      if (saved) setNameCol(saved);
+    } catch {}
+  }, [templateSlug]);
+
   /* ----------------------------- Rendering Batch ------------------------- */
 
-  // Limit parallel polling to avoid throttling backends (tune freely)
-  const CONCURRENCY = 4;
-
   async function pollOne(it: QueuedItem, idx: number, rowName: string) {
-    // presign download
+    // --- Out key handling: no 'renders/' prefix by default ---
     const ext = it.ext || "png";
-    const outKey = it.outKey || `renders/${it.renderId}/out.${ext}`;
+    const outKey = it.outKey || `${it.renderId}/out.${ext}`;
+
+    // presign download
     const signRes = await fetch(
       `/api/lambda/file?bucketName=${encodeURIComponent(
         it.bucketName
-      )}&outKey=${encodeURIComponent(outKey)}&ext=${ext}`
+      )}&outKey=${encodeURIComponent(outKey)}&ext=${ext}`,
+      { cache: "no-store" }
     );
     const signJ = await signRes.json();
     if (!signRes.ok || !signJ?.url) throw new Error("Presign failed");
 
     // probe until exists or canceled
     let readyUrl: string | null = null;
-    let delay = 600;
-    const deadline = Date.now() + 90_000;
+    let delay = 650;
+    const deadline = Date.now() + 120_000;
 
     while (!canceledRef.current && Date.now() < deadline) {
       const pr = await fetch(
         `/api/lambda/probe?bucketName=${encodeURIComponent(
           it.bucketName
-        )}&outKey=${encodeURIComponent(outKey)}`
+        )}&outKey=${encodeURIComponent(outKey)}`,
+        { cache: "no-store" }
       ).then((x) => x.json());
       if (pr?.exists) {
         readyUrl = signJ.url as string;
         break;
       }
       await sleep(delay);
-      delay = Math.min(delay * 1.35 + Math.random() * 120, 4000);
+      delay = Math.min(delay * 1.35 + Math.random() * 120, 4500);
     }
 
     if (canceledRef.current) throw new Error("Canceled");
@@ -208,11 +304,13 @@ export default function MergeNames({
 
   async function startRender() {
     try {
+      if (!rows.length) return;
       canceledRef.current = false;
       setStatus("queued");
       setError(null);
       setFiles([]);
       setQueued([]);
+      setZipPct(0);
       setProgress({ done: 0, total: rows.length });
 
       const payload = {
@@ -224,7 +322,7 @@ export default function MergeNames({
           venue: baseVenue,
           bg: bg ?? undefined,
           isWish,
-          tier: "free", // keep free to match current backend entitlements
+          tier: "free",
           watermark: true,
           watermarkStrategy: "ribbon+tile",
           wmSeed: Math.floor(Math.random() * 1e6),
@@ -241,6 +339,7 @@ export default function MergeNames({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        cache: "no-store",
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error || "Queue failed");
@@ -271,8 +370,11 @@ export default function MergeNames({
               await fn();
             } catch (e: any) {
               if (e?.message === "Canceled") break;
-              // collect partial but show error
-              setError(e?.message || "One or more renders failed");
+              setError((prev) =>
+                prev
+                  ? prev
+                  : (e?.message as string) || "One or more renders failed"
+              );
             }
           }
         });
@@ -303,18 +405,27 @@ export default function MergeNames({
 
   async function downloadZip() {
     if (!files.length) return;
+    setZipPct(1);
     const zip = new JSZip();
+    let i = 0;
     for (const f of files) {
-      const resp = await fetch(f.url);
+      const resp = await fetch(f.url, { cache: "no-store" });
       const blob = await resp.blob();
       zip.file(f.name, blob);
+      i += 1;
+      setZipPct(Math.round((i / files.length) * 98)); // keep a little headroom for compression
     }
-    const out = await zip.generateAsync({ type: "blob" });
+    const out = await zip.generateAsync(
+      { type: "blob" },
+      (meta) => setZipPct(98 + Math.floor(meta.percent / 50)) // gently goes 98→100
+    );
     const a = document.createElement("a");
     a.href = URL.createObjectURL(out);
     a.download = "invites-batch.zip";
     a.click();
     URL.revokeObjectURL(a.href);
+    setZipPct(100);
+    setTimeout(() => setZipPct(0), 800);
   }
 
   function resetAll() {
@@ -339,8 +450,10 @@ export default function MergeNames({
 
   return (
     <section
-      className="mt-8 rounded-2xl border border-white/60 bg-white/85 p-5 shadow-[0_10px_40px_rgba(0,0,0,0.08)] backdrop-blur-2xl"
+      className="mt-8 rounded-2xl border border-white/60 bg-white/85 p-5 shadow-[0_10px_40px_rgba(0,0,0,0.08)] supports-[backdrop-filter]:backdrop-blur-2xl"
       onClick={stop}
+      aria-busy={status === "parsing" || status === "queued" || status === "polling"}
+      style={{ contentVisibility: "auto" }}
     >
       {/* Header */}
       <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
@@ -351,9 +464,12 @@ export default function MergeNames({
           <div>
             <h3 className="font-display text-lg">Batch (CSV) — Name merge</h3>
             <p className="text-xs text-ink-700">
-              Use <code className="rounded bg-ink-50 px-1">{"{name}"}</code> in
-              Title/Names/Date/Venue. Upload a CSV with a{" "}
-              <strong>name</strong> column (or pick the column below).
+              Use{" "}
+              <code className="rounded bg-ink-50 px-1">
+                {"{name}"}
+              </code>{" "}
+              in Title/Names/Date/Venue. Upload a CSV with a <strong>name</strong>{" "}
+              column (or pick it below).
             </p>
           </div>
         </div>
@@ -389,17 +505,22 @@ export default function MergeNames({
 
       {/* Dropzone / Uploader */}
       <div
+        role="group"
+        aria-describedby={dropDescId}
         onDragOver={(e) => {
           e.preventDefault();
           setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        className={`relative mt-3 grid gap-3 rounded-2xl border-2 border-dashed p-4 sm:grid-cols-[1fr_auto] ${
+        onPaste={onPaste}
+        onClick={() => fileRef.current?.click()}
+        className={`relative mt-3 grid gap-3 rounded-2xl border-2 border-dashed p-4 sm:grid-cols-[1fr_auto] cursor-pointer transition ${
           isDragging
             ? "border-amber-400 bg-amber-50/50"
-            : "border-ink-200 bg-white/70"
+            : "border-ink-200 bg-white/70 hover:bg-white"
         }`}
+        title="Click to choose a CSV, or drag & drop, or paste CSV text"
       >
         <div className="flex items-center gap-3">
           <div className="inline-grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-tr from-amber-400 via-rose-400 to-violet-500 text-white ring-1 ring-white/60 shadow">
@@ -407,10 +528,10 @@ export default function MergeNames({
           </div>
           <div>
             <div className="text-sm font-medium">
-              Drag & drop your <span className="font-semibold">.csv</span> here
-              or click to upload
+              Drop your <span className="font-semibold">.csv</span> here,{" "}
+              click to upload, or <span className="font-semibold">paste</span> CSV
             </div>
-            <div className="text-xs text-ink-700">
+            <div id={dropDescId} className="text-xs text-ink-700">
               We’ll auto-detect the <em>name</em> column; you can change it.
             </div>
           </div>
@@ -436,7 +557,10 @@ export default function MergeNames({
 
       {/* Mapping + Preview */}
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-white/60 bg-white/90 p-4">
+        <div
+          className="rounded-xl border border-white/60 bg-white/90 p-4 supports-[backdrop-filter]:backdrop-blur"
+          style={{ contentVisibility: "auto", containIntrinsicSize: "500px 240px" }}
+        >
           <div className="mb-2 flex items-center justify-between">
             <div className="text-sm font-medium">Column mapping</div>
             {!!columns.length && (
@@ -451,7 +575,16 @@ export default function MergeNames({
                 <select
                   className="ml-2 rounded-lg border border-ink-200 bg-white px-2 py-1 text-sm"
                   value={nameCol}
-                  onChange={(e) => setNameCol(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setNameCol(val);
+                    try {
+                      localStorage.setItem(
+                        `fi:merge:${templateSlug}:nameCol`,
+                        val.toLowerCase()
+                      );
+                    } catch {}
+                  }}
                 >
                   {columns.map((c) => (
                     <option key={c} value={c}>
@@ -506,7 +639,10 @@ export default function MergeNames({
         </div>
 
         {/* Token preview */}
-        <div className="rounded-xl border border-white/60 bg-white/90 p-4">
+        <div
+          className="rounded-xl border border-white/60 bg-white/90 p-4 supports-[backdrop-filter]:backdrop-blur"
+          style={{ contentVisibility: "auto", containIntrinsicSize: "500px 220px" }}
+        >
           <div className="mb-2 text-sm font-medium">Token preview</div>
           <ul className="grid gap-2 text-sm">
             <li>
@@ -532,7 +668,10 @@ export default function MergeNames({
           </ul>
 
           <p className="mt-2 text-xs text-ink-700">
-            Replace <code className="rounded bg-ink-50 px-1">{"{name}"}</code>{" "}
+            Replace{" "}
+            <code className="rounded bg-ink-50 px-1">
+              {"{name}"}
+            </code>{" "}
             in your fields to personalize each render.
           </p>
         </div>
@@ -592,7 +731,11 @@ export default function MergeNames({
 
       {/* Progress */}
       {(status === "queued" || status === "polling") && (
-        <div className="mt-3 rounded-xl border border-ink-100 bg-white p-3">
+        <div
+          className="mt-3 rounded-xl border border-ink-100 bg-white p-3"
+          role="status"
+          aria-live="polite"
+        >
           <div className="mb-1 flex items-center justify-between text-xs text-ink-700">
             <span className="inline-flex items-center gap-2">
               <Play className="h-3.5 w-3.5" />
@@ -616,9 +759,33 @@ export default function MergeNames({
         </div>
       )}
 
+      {/* ZIP progress */}
+      {zipPct > 0 && (
+        <div className="mt-3 rounded-xl border border-ink-100 bg-white p-3">
+          <div className="mb-1 flex items-center justify-between text-xs text-ink-700">
+            <span className="inline-flex items-center gap-2">
+              <FileDown className="h-3.5 w-3.5" />
+              Preparing ZIP…
+            </span>
+            <span>{zipPct}%</span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
+            <motion.div
+              className="h-full bg-ink-800"
+              initial={{ width: 0 }}
+              animate={{ width: `${zipPct}%` }}
+              transition={{ duration: prefersReduced ? 0 : 0.2 }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Error */}
       {error && (
-        <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+        <div
+          className="mt-3 inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700"
+          role="alert"
+        >
           <AlertTriangle className="h-4 w-4" />
           {error}
         </div>
@@ -626,7 +793,10 @@ export default function MergeNames({
 
       {/* Results grid */}
       {files.length > 0 && (
-        <div className="mt-5">
+        <div
+          className="mt-5"
+          style={{ contentVisibility: "auto", containIntrinsicSize: "900px 800px" }}
+        >
           <div className="mb-2 flex items-center justify-between">
             <h4 className="font-display text-base">Results</h4>
             <div className="text-xs text-ink-700">
@@ -638,7 +808,8 @@ export default function MergeNames({
             {files.map((f) => (
               <li
                 key={f.url}
-                className="rounded-xl border border-white/60 bg-white/90 p-2 shadow-sm"
+                className="rounded-xl border border-white/60 bg-white/90 p-2 shadow-sm supports-[backdrop-filter]:backdrop-blur"
+                style={{ contentVisibility: "auto", containIntrinsicSize: "300px 360px" }}
               >
                 <div className="mb-1 truncate text-[11px] text-ink-700">
                   {f.name}
@@ -649,6 +820,8 @@ export default function MergeNames({
                   alt={f.name}
                   className="h-auto w-full rounded-lg"
                   draggable={false}
+                  loading="lazy"
+                  decoding="async"
                 />
                 <div className="mt-2 flex items-center justify-between">
                   <a
@@ -678,7 +851,7 @@ export default function MergeNames({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 10, opacity: 0 }}
             transition={{ duration: prefersReduced ? 0 : 0.18 }}
-            className="pointer-events-none fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 rounded-xl border border-white/60 bg-white/90 px-3 py-1.5 text-xs text-ink-900 shadow backdrop-blur"
+            className="pointer-events-none fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 rounded-xl border border-white/60 bg-white/90 px-3 py-1.5 text-xs text-ink-900 shadow supports-[backdrop-filter]:backdrop-blur"
             role="status"
             aria-live="polite"
           >
