@@ -1,6 +1,6 @@
 // src/app/[slug]/[id]/page.tsx
 import Image from "next/image";
-import type { Metadata, PageProps } from "next";
+import type { Metadata } from "next";
 import type { Invite } from "@/types/invite";
 import ShareBar from "@/components/ShareBar";
 
@@ -34,10 +34,21 @@ async function fetchInvite(id: string): Promise<Invite | null> {
 /* --------------------------------------------- */
 type RouteParams = { slug: string; id: string };
 
-export async function generateMetadata(
-  { params }: PageProps<RouteParams>
-): Promise<Metadata> {
-  const { id } = await params; // ✅ v15: await params
+async function resolveParams(
+  p: RouteParams | Promise<RouteParams>
+): Promise<RouteParams> {
+  // Works on both Next 14 (object) and Next 15 (promise)
+  return (p as any)?.then
+    ? await (p as Promise<RouteParams>)
+    : (p as RouteParams);
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: RouteParams | Promise<RouteParams>;
+}): Promise<Metadata> {
+  const { id } = await resolveParams(params);
   const inv = await fetchInvite(id);
   if (!inv) return { title: "Invite not found" };
 
@@ -59,7 +70,9 @@ export async function generateMetadata(
   };
 
   let ogUrl: string | undefined =
-    inv.ogImageUrl && looksLikeImage(inv.ogImageUrl) ? inv.ogImageUrl : undefined;
+    inv.ogImageUrl && looksLikeImage(inv.ogImageUrl)
+      ? inv.ogImageUrl
+      : undefined;
 
   // Attempt to generate/fetch an OG still if we don't have one already.
   if (!ogUrl && base) {
@@ -106,7 +119,10 @@ function FestiveBackdrop() {
     <div
       aria-hidden
       className="pointer-events-none absolute inset-0 -z-10"
-      style={{ contentVisibility: "auto", containIntrinsicSize: "1200px 800px" }}
+      style={{
+        contentVisibility: "auto",
+        containIntrinsicSize: "1200px 800px",
+      }}
     >
       <div className="absolute -top-28 left-1/2 h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(255,193,7,0.16),transparent_60%)] blur-2xl md:h-[40rem] md:w-[40rem] md:blur-3xl" />
       <div className="absolute top-40 right-[-15%] h-[22rem] w-[22rem] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(244,67,54,0.12),transparent_60%)] blur-xl md:h-[28rem] md:w-[28rem] md:blur-3xl" />
@@ -115,7 +131,13 @@ function FestiveBackdrop() {
   );
 }
 
-function SectionTabs({ hasRSVP, hasWishes }: { hasRSVP: boolean; hasWishes: boolean }) {
+function SectionTabs({
+  hasRSVP,
+  hasWishes,
+}: {
+  hasRSVP: boolean;
+  hasWishes: boolean;
+}) {
   return (
     <div
       className="sticky z-30 -mx-4 mb-4 bg-gradient-to-b from-white/85 to-white/65 px-4 py-2 supports-[backdrop-filter]:backdrop-blur"
@@ -167,10 +189,12 @@ function SectionTabs({ hasRSVP, hasWishes }: { hasRSVP: boolean; hasWishes: bool
 /* --------------------------------------------- */
 /* Page                                          */
 /* --------------------------------------------- */
-export default async function InvitePage(
-  { params }: PageProps<RouteParams>
-) {
-  const { slug, id } = await params; // ✅ v15: await params
+export default async function InvitePage({
+  params,
+}: {
+  params: RouteParams | Promise<RouteParams>;
+}) {
+  const { slug, id } = await resolveParams(params);
   const inv = await fetchInvite(id);
 
   if (!inv || inv.slug !== slug) {
@@ -227,9 +251,7 @@ export default async function InvitePage(
               {inv.title}
             </span>
           </h1>
-          {inv.subtitle && (
-            <p className="mt-1 text-ink-700">{inv.subtitle}</p>
-          )}
+          {inv.subtitle && <p className="mt-1 text-ink-700">{inv.subtitle}</p>}
 
           {infoChips.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
@@ -321,7 +343,9 @@ export default async function InvitePage(
                 try {
                   const key = "fi:shortlist";
                   const raw =
-                    typeof window !== "undefined" ? localStorage.getItem(key) : "[]";
+                    typeof window !== "undefined"
+                      ? localStorage.getItem(key)
+                      : "[]";
                   const list = JSON.parse(raw || "[]");
                   if (!list.find((x: any) => x.id === inv.id)) {
                     list.push({ id: inv.id, slug: inv.slug, title: inv.title });
@@ -343,7 +367,10 @@ export default async function InvitePage(
         <section
           id="extras"
           className="mt-8 scroll-mt-20"
-          style={{ contentVisibility: "auto", containIntrinsicSize: "800px 600px" }}
+          style={{
+            contentVisibility: "auto",
+            containIntrinsicSize: "800px 600px",
+          }}
         >
           {(inv.ogImageUrl || isImage) && (
             <div className="rounded-2xl border border-white/70 bg-white/80 p-3 supports-[backdrop-filter]:backdrop-blur">
