@@ -89,12 +89,16 @@ function LangChip({
 /* ------------------------------- Skeletons -------------------------------- */
 function Line({ className = "" }: { className?: string }) {
   return (
-    <div className={`h-3 w-full rounded bg-ink-200/60 dark:bg-white/10 ${className}`} />
+    <div
+      className={`h-3 w-full rounded bg-ink-200/60 dark:bg-white/10 ${className}`}
+    />
   );
 }
 
 function ChipSkeleton() {
-  return <div className="h-6 w-16 rounded-full bg-ink-200/60 dark:bg-white/10" />;
+  return (
+    <div className="h-6 w-16 rounded-full bg-ink-200/60 dark:bg-white/10" />
+  );
 }
 
 function CardSkeleton() {
@@ -178,9 +182,8 @@ function TemplateCard({
               loading={priority ? undefined : "lazy"}
               decoding="async"
               sizes="(max-width:640px) 84vw, (max-width:1024px) 45vw, 30vw"
-              className={`object-cover transition-transform duration-400 group-hover:scale-[1.03] ${
-                ready ? "opacity-100" : "opacity-0"
-              }`}
+              className={`object-cover transition-transform duration-300 group-hover:scale-[1.03]`}
+              style={{ willChange: "transform,opacity", transform: "translateZ(0)" }}
               draggable={false}
               onLoadingComplete={() => setReady(true)}
             />
@@ -202,7 +205,10 @@ function TemplateCard({
               aria-hidden
             >
               <g filter="url(#glow)">
-                <path d="M30 10l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z" fill="url(#g1)" />
+                <path
+                  d="M30 10l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z"
+                  fill="url(#g1)"
+                />
               </g>
               <defs>
                 <radialGradient
@@ -318,7 +324,9 @@ export default function TemplateGrid({
     <section
       id="templates"
       className="relative mx-auto max-w-6xl px-4 pb-20"
-      style={{ contentVisibility: "auto", containIntrinsicSize: "1200px 900px" }}
+      style={{
+        containIntrinsicSize: "1200px 900px",
+      }}
       aria-busy={loading}
     >
       <FestiveGlow />
@@ -345,8 +353,17 @@ export default function TemplateGrid({
             aria-label="Open the full builder"
           >
             See all
-            <svg width="16" height="16" viewBox="0 0 24 24" className="opacity-70" aria-hidden>
-              <path fill="currentColor" d="M8.59 16.59L13.17 12L8.59 7.41L10 6l6 6-6 6z" />
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              className="opacity-70"
+              aria-hidden
+            >
+              <path
+                fill="currentColor"
+                d="M8.59 16.59L13.17 12L8.59 7.41L10 6l6 6-6 6z"
+              />
             </svg>
           </Link>
         </div>
@@ -405,12 +422,14 @@ export default function TemplateGrid({
         }`}
         role="toolbar"
         aria-label="Filter by language"
-        style={{
-          WebkitMaskImage:
-            "linear-gradient(90deg, transparent 0, black 8px, black calc(100% - 8px), transparent 100%)",
-          maskImage:
-            "linear-gradient(90deg, transparent 0, black 8px, black calc(100% - 8px), transparent 100%)",
-        } as React.CSSProperties}
+        style={
+          {
+            WebkitMaskImage:
+              "linear-gradient(90deg, transparent 0, black 8px, black calc(100% - 8px), transparent 100%)",
+            maskImage:
+              "linear-gradient(90deg, transparent 0, black 8px, black calc(100% - 8px), transparent 100%)",
+          } as React.CSSProperties
+        }
       >
         {loading ? (
           <>
@@ -421,7 +440,11 @@ export default function TemplateGrid({
           </>
         ) : (
           <>
-            <LangChip label="All" active={!lang} onClick={() => setLang(null)} />
+            <LangChip
+              label="All"
+              active={!lang}
+              onClick={() => setLang(null)}
+            />
             {languages.map((l) => (
               <LangChip
                 key={l}
@@ -447,7 +470,8 @@ export default function TemplateGrid({
           </span>
         ) : (
           <>
-            Showing <strong className="mx-1">{count}</strong> template{count !== 1 ? "s" : ""}{" "}
+            Showing <strong className="mx-1">{count}</strong> template
+            {count !== 1 ? "s" : ""}{" "}
             {lang ? (
               <>
                 in{" "}
@@ -456,62 +480,74 @@ export default function TemplateGrid({
                 </span>
               </>
             ) : null}
-            {query ? <span className="ml-1 opacity-80">for “{query}”</span> : null}
+            {query ? (
+              <span className="ml-1 opacity-80">for “{query}”</span>
+            ) : null}
           </>
         )}
       </div>
 
       {/* Mobile rail (snap) */}
       <div className="sm:hidden">
-        <div
-          className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2"
-          role="list"
-          style={{
-            WebkitMaskImage:
-              "linear-gradient(90deg, transparent 0, black 12px, black calc(100% - 12px), transparent 100%)",
-            maskImage:
-              "linear-gradient(90deg, transparent 0, black 12px, black calc(100% - 12px), transparent 100%)",
-            msOverflowStyle: "none",
-            scrollbarWidth: "none",
-          } as React.CSSProperties}
-        >
-          {(loading
-            ? Array.from({ length: skeletonRailCount })
-            : list
-          ).map((item: any, i: number) => (
-            <div key={loading ? `skm-${i}` : item.id} className="snap-start shrink-0 basis-[84%]" role="listitem">
-              {loading ? (
-                <CardSkeleton />
-              ) : (
-                <TemplateCard
-                  t={item as T}
-                  i={i}
-                  finePointer={finePointer}
-                  priority={i < PRIORITY_MOBILE}
-                />
-              )}
-            </div>
-          ))}
+        <div className="relative -mx-4 px-4">
+          {/* Edge fades (overlay, not mask) */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-white to-transparent"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent"
+          />
+
+          <div
+            className="no-scrollbar flex snap-x snap-mandatory [scroll-snap-stop:always] gap-4 overflow-x-auto overscroll-x-contain pb-2"
+            role="list"
+          >
+            {(loading ? Array.from({ length: skeletonRailCount }) : list).map(
+              (item: any, i: number) => (
+                <div
+                  key={loading ? `skm-${i}` : item.id}
+                  className="snap-start shrink-0 basis-[88%] xs:basis-[72%] min-w-0"
+                  role="listitem"
+                >
+                  {loading ? (
+                    <CardSkeleton />
+                  ) : (
+                    <TemplateCard
+                      t={item as T}
+                      i={i}
+                      finePointer={finePointer}
+                      priority={i < PRIORITY_MOBILE}
+                    />
+                  )}
+                </div>
+              )
+            )}
+          </div>
         </div>
       </div>
 
       {/* Desktop grid */}
       <div
         className="hidden grid-cols-2 gap-6 sm:grid lg:grid-cols-3 2xl:grid-cols-4"
-        style={{ contentVisibility: "auto", containIntrinsicSize: "900px 800px" }}
+        style={{
+          containIntrinsicSize: "900px 800px",
+        }}
       >
-        {(loading ? Array.from({ length: skeletonCount }) : list).map((t: any, i) =>
-          loading ? (
-            <CardSkeleton key={`sk-${i}`} />
-          ) : (
-            <TemplateCard
-              key={(t as T).id}
-              t={t as T}
-              i={i}
-              finePointer={finePointer}
-              priority={i < PRIORITY_DESKTOP}
-            />
-          )
+        {(loading ? Array.from({ length: skeletonCount }) : list).map(
+          (t: any, i) =>
+            loading ? (
+              <CardSkeleton key={`sk-${i}`} />
+            ) : (
+              <TemplateCard
+                key={(t as T).id}
+                t={t as T}
+                i={i}
+                finePointer={finePointer}
+                priority={i < PRIORITY_DESKTOP}
+              />
+            )
         )}
       </div>
 

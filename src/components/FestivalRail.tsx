@@ -175,9 +175,11 @@ function Card(p: CardProps) {
               alt={p.name}
               fill
               sizes="(max-width: 640px) 78vw, (max-width: 768px) 58vw, (max-width: 1024px) 33vw, 20vw"
-              className={`object-cover transition-transform duration-300 group-hover:scale-[1.03] ${
-                ready ? "opacity-100" : "opacity-0"
-              }`}
+              className={`object-cover transition-transform duration-300 group-hover:scale-[1.03]`}
+              style={{
+                willChange: "transform,opacity",
+                transform: "translateZ(0)",
+              }}
               priority={!!p.priority}
               fetchPriority={p.priority ? "high" : "auto"}
               loading={p.priority ? undefined : "lazy"}
@@ -205,7 +207,9 @@ function Card(p: CardProps) {
           <CalendarDays className="h-3.5 w-3.5" aria-hidden />
           <span>{when}</span>
         </div>
-        <div className="mt-0.5 line-clamp-1 text-sm font-semibold">{p.name}</div>
+        <div className="mt-0.5 line-clamp-1 text-sm font-semibold">
+          {p.name}
+        </div>
 
         <div className="mt-2 flex items-center justify-between">
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-200">
@@ -230,7 +234,13 @@ function Card(p: CardProps) {
 }
 
 /* ----------------------------- Section header ---------------------------- */
-function SectionHeader({ title, loading = false }: { title: string; loading?: boolean }) {
+function SectionHeader({
+  title,
+  loading = false,
+}: {
+  title: string;
+  loading?: boolean;
+}) {
   return (
     <div className="flex items-center gap-2">
       <div className="inline-grid h-6 w-6 place-items-center rounded-lg bg-gradient-to-tr from-amber-400 via-rose-400 to-violet-500 ring-1 ring-white/60" />
@@ -283,47 +293,54 @@ function Section({
       aria-busy={loading}
       aria-live="polite"
       style={{
-        contentVisibility: "auto",
         containIntrinsicSize: "900px 600px",
       }}
     >
       <SectionHeader title={title} loading={loading} />
 
       {/* Mobile rail (snap) */}
-      <div
-        className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 sm:hidden"
-        role="list"
-        aria-label={title}
-        style={{
-          WebkitMaskImage:
-            "linear-gradient(90deg, transparent 0, black 12px, black calc(100% - 12px), transparent 100%)",
-          maskImage:
-            "linear-gradient(90deg, transparent 0, black 12px, black calc(100% - 12px), transparent 100%)",
-          msOverflowStyle: "none",
-          scrollbarWidth: "none",
-        } as React.CSSProperties}
-      >
-        {(loading ? Array.from({ length: Math.min(6, skeletonCount) }) : prepared).map(
-          (f, idx) => (
-            <div
-              key={loading ? `sk-${idx}` : (f as CardProps).slug}
-              className="snap-start shrink-0 basis-[88%] xs:basis-[70%]"
-              role="listitem"
-            >
-              {loading ? <CardSkeleton /> : <Card {...(f as CardProps)} />}
-            </div>
-          )
-        )}
+      <div className="sm:hidden mt-3">
+        <div className="relative -mx-4 px-4">
+          {/* Edge fades (overlay, not mask) */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-white to-transparent"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent"
+          />
+
+          <div
+            className="no-scrollbar flex snap-x snap-mandatory [scroll-snap-stop:always] gap-3 overflow-x-auto overscroll-x-contain pb-2"
+            role="list"
+            aria-label={title}
+          >
+            {(loading
+              ? Array.from({ length: Math.min(6, skeletonCount) })
+              : prepared
+            ).map((f, idx) => (
+              <div
+                key={loading ? `sk-${idx}` : (f as CardProps).slug}
+                className="snap-start shrink-0 basis-[88%] xs:basis-[72%] min-w-0"
+                role="listitem"
+              >
+                {loading ? <CardSkeleton /> : <Card {...(f as CardProps)} />}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Desktop grid */}
       <div className="mt-3 hidden grid-cols-2 gap-3 sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-        {(loading ? Array.from({ length: skeletonCount }) : prepared).map((f, i) =>
-          loading ? (
-            <CardSkeleton key={`desk-sk-${i}`} />
-          ) : (
-            <Card key={(f as CardProps).slug} {...(f as CardProps)} />
-          )
+        {(loading ? Array.from({ length: skeletonCount }) : prepared).map(
+          (f, i) =>
+            loading ? (
+              <CardSkeleton key={`desk-sk-${i}`} />
+            ) : (
+              <Card key={(f as CardProps).slug} {...(f as CardProps)} />
+            )
         )}
       </div>
     </section>
@@ -348,7 +365,8 @@ export default function FestivalRail({
       region: f.region,
     }));
 
-  const nothing = !loading && !featured.length && !week.length && !nextMonth.length;
+  const nothing =
+    !loading && !featured.length && !week.length && !nextMonth.length;
   if (nothing) return null;
 
   return (

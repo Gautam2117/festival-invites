@@ -46,4 +46,11 @@
   transform: translateZ(0);
   will-change: transform;
 }
-.no-scrollbar::-webkit-scrollbar { display: none; }
+/* Hide horizontal scrollbar without layout shift */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none;    /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;            /* Chrome/Safari */
+}

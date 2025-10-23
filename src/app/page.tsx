@@ -105,7 +105,6 @@ export default function Home() {
           <div
             className="mx-auto max-w-6xl px-4"
             style={{
-              contentVisibility: "auto",
               containIntrinsicSize: "1000px 800px",
             }}
           >
@@ -127,7 +126,6 @@ export default function Home() {
             id="templates"
             aria-label="Browse templates"
             style={{
-              contentVisibility: "auto",
               containIntrinsicSize: "1200px 1200px",
             }}
           >

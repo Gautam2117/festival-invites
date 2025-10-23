@@ -37,7 +37,7 @@ import {
   Wand2,
 } from "lucide-react";
 
-import DecorativeBG from "@/components/DecorativeBG";
+// import DecorativeBG from "@/components/DecorativeBG";
 import { FestivalIntro } from "@/remotion/FestivalIntro";
 import { ImageCard } from "@/remotion/ImageCard";
 import { templates } from "@/templates";
@@ -52,6 +52,21 @@ import { usePreloadImage, usePreloadAudio } from "@/lib/use-asset-preload";
 import { nextFestival } from "@/lib/festivals";
 
 import NextDynamic from "next/dynamic";
+
+function MobileBG() {
+  // Fixed, behind everything, very light on mobile to avoid “white plates”
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none fixed inset-0 -z-10 isolate"
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(1200px_600px_at_50%_-10%,rgba(255,193,7,0.10),transparent_60%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(800px_500px_at_110%_20%,rgba(244,67,54,0.10),transparent_60%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(700px_500px_at_-10%_110%,rgba(103,58,183,0.10),transparent_60%)]" />
+    </div>
+  );
+}
+
 const MergeNames = NextDynamic(() => import("@/components/MergeNames"), {
   ssr: false,
 });
@@ -72,10 +87,9 @@ function Card(props: PropsWithChildren<{ className?: string }>) {
   return (
     <div
       className={
-        "rounded-2xl border border-white/60 bg-white/90 supports-[backdrop-filter]:md:backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] " +
+        "isolate rounded-2xl border border-white/60 bg-white/90 supports-[backdrop-filter]:md:backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] " +
         (props.className || "")
       }
-      style={{ contentVisibility: "auto", containIntrinsicSize: "900px 800px" }}
     >
       {props.children}
     </div>
@@ -420,7 +434,8 @@ function BuilderPageInner() {
   const [musicVolume, setMusicVolume] = useState<number>(autoPreset.volume);
   const musicFromCurated = curatedMap[trackId] || "";
   const musicCandidate =
-    customMusic ?? (trackId === "auto"
+    customMusic ??
+    (trackId === "auto"
       ? autoPreset.file
       : trackId === "none"
       ? null
@@ -545,6 +560,13 @@ function BuilderPageInner() {
     name: string;
   }> | null>(null);
   const [quickWishInFlight, setQuickWishInFlight] = useState(false);
+
+  const [showSkeleton, setShowSkeleton] = useState(true);
+  useEffect(() => {
+    // Hide skeleton shortly after the player mounts/changes
+    const t = setTimeout(() => setShowSkeleton(false), 350);
+    return () => clearTimeout(t);
+  }, [playerKey]);
 
   useEffect(() => {
     fetch("/api/brands")
@@ -963,7 +985,7 @@ function BuilderPageInner() {
   /* --------------------------------------------- */
   return (
     <>
-      <DecorativeBG intensity="subtle" />
+      <MobileBG />
 
       {/* Download toast */}
       {downloadUrl && (
@@ -1009,7 +1031,10 @@ function BuilderPageInner() {
               <button
                 type="button"
                 onClick={() =>
-                  shareToWhatsApp(publicUrl || downloadUrl!, "Here is my invite:")
+                  shareToWhatsApp(
+                    publicUrl || downloadUrl!,
+                    "Here is my invite:"
+                  )
                 }
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
                 title="WhatsApp"
@@ -1034,10 +1059,13 @@ function BuilderPageInner() {
       )}
 
       <main
-        className="mx-auto max-w-7xl px-4 py-10 overscroll-contain"
-        // pad for the mobile action bar + safe area so content isn’t hidden
+        className="mx-auto max-w-7xl px-4 py-10 overscroll-y-contain isolate"
         style={{
+          // bottom padding so the fixed mobile bar never overlaps content
           paddingBottom: "calc(env(safe-area-inset-bottom) + 72px)",
+          // modern mobile viewport units to prevent jumpy sticky areas
+          minHeight: "100dvh",
+          WebkitTapHighlightColor: "transparent",
         }}
       >
         {/* Header */}
@@ -1046,7 +1074,7 @@ function BuilderPageInner() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-8"
         >
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/90 px-3 py-1 text-sm shadow-sm supports-[backdrop-filter]:md:backdrop-blur">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/90 px-3 py-1 text-sm shadow-sm supports-[backdrop-filter]:md:backdrop-blur isolate">
             <Sparkles className="h-4 w-4 text-brand-600" />
             <span className="font-medium text-ink-700">
               Festive invite builder
@@ -1634,7 +1662,9 @@ function BuilderPageInner() {
                 <button
                   type="button"
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 px-4 py-2 text-white text-sm font-medium shadow hover:opacity-95"
-                  onClick={() => (paid ? doExportLambda("hd") : handlePayAndExport())}
+                  onClick={() =>
+                    paid ? doExportLambda("hd") : handlePayAndExport()
+                  }
                   disabled={exporting}
                   aria-busy={exportingWhich === "hd"}
                   title="HD, no watermark, premium effects"
@@ -1788,7 +1818,7 @@ function BuilderPageInner() {
 
           {/* Preview */}
           <section id="preview" className="col-span-12 xl:col-span-4">
-            <Card className="p-4 sticky top-6">
+            <Card className="p-4 sticky top-[calc(env(safe-area-inset-top)+8px)] transform-gpu">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="font-display text-xl">
                   {isWish ? "Wish preview" : "Live preview"}
@@ -1824,13 +1854,16 @@ function BuilderPageInner() {
 
               <div
                 ref={previewRef}
-                className={`rounded-xl overflow-hidden border bg-white relative shadow-sm ${mode === "video" ? videoAspect : imageAspect}`}
+                className={`relative rounded-xl overflow-hidden border bg-white shadow-sm ${
+                  mode === "video" ? "aspect-[9/16]" : "aspect-[1/1]"
+                } max-h-[80dvh]`}
               >
                 {/* accent wash */}
                 <div
-                  className={`pointer-events-none absolute inset-0 opacity-25 bg-gradient-to-tr ${meta.accent}`}
+                  className={`pointer-events-none absolute inset-0 sm:opacity-25 opacity-10 bg-gradient-to-tr ${meta.accent}`}
                   aria-hidden
                 />
+
                 {/* mount the player only when visible to save CPU on phones */}
                 <div className="relative w-full h-full">
                   {previewInView ? (
@@ -1911,6 +1944,12 @@ function BuilderPageInner() {
                   )}
                 </div>
 
+                {showSkeleton && (
+                  <div className="absolute inset-0 animate-pulse bg-[linear-gradient(180deg,rgba(0,0,0,0.06),rgba(0,0,0,0.02))]">
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-white/70 shadow" />
+                  </div>
+                )}
+
                 {(bgStatus === "loading" || musicStatus === "loading") && (
                   <span className="absolute right-3 top-3 rounded-full bg-black/60 text-white px-2 py-0.5 text-xs">
                     Updating preview…
@@ -1939,7 +1978,7 @@ function BuilderPageInner() {
 
       {/* Mobile action bar */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-white/60 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] px-3 py-2 sm:hidden"
+        className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 border-t border-white/60 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] px-2 py-1.5 sm:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="flex items-center justify-between gap-2">
