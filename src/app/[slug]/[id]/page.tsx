@@ -34,21 +34,12 @@ async function fetchInvite(id: string): Promise<Invite | null> {
 /* --------------------------------------------- */
 type RouteParams = { slug: string; id: string };
 
-async function resolveParams(
-  p: RouteParams | Promise<RouteParams>
-): Promise<RouteParams> {
-  // Works on both Next 14 (object) and Next 15 (promise)
-  return (p as any)?.then
-    ? await (p as Promise<RouteParams>)
-    : (p as RouteParams);
-}
-
 export async function generateMetadata({
   params,
 }: {
-  params: RouteParams | Promise<RouteParams>;
+  params: Promise<RouteParams>;
 }): Promise<Metadata> {
-  const { id } = await resolveParams(params);
+  const { id } = await params;
   const inv = await fetchInvite(id);
   if (!inv) return { title: "Invite not found" };
 
@@ -192,9 +183,9 @@ function SectionTabs({
 export default async function InvitePage({
   params,
 }: {
-  params: RouteParams | Promise<RouteParams>;
+  params: Promise<RouteParams>;
 }) {
-  const { slug, id } = await resolveParams(params);
+  const { slug, id } = await params;
   const inv = await fetchInvite(id);
 
   if (!inv || inv.slug !== slug) {
