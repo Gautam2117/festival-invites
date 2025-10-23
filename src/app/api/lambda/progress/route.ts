@@ -1,15 +1,11 @@
 // src/app/api/lambda/progress/route.ts
 import { NextResponse } from "next/server";
-import {
-  getRenderProgress,
-  getFunctions,
-  type AwsRegion,
-} from "@remotion/lambda/client";
+import { getRenderProgress } from "@remotion/lambda/client";
 import { S3Client, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { makeLimiter, limitOrThrow, getIP } from "@/lib/ops";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import { lambdaCfg, runtime, dynamic } from "../_common";
+export { runtime, dynamic };
 
 const perIpProgressLimiter = makeLimiter(
   Number(process.env.PROGRESS_PER_IP_PER_MIN || 30),
@@ -28,11 +24,12 @@ async function probeOutKey(opts: {
     ? opts.extHints
     : ["mp4", "gif", "webm", "png", "jpeg"];
 
-  const prefixes = ["", "renders/"]; // first try <renderId>/out.*, then renders/<renderId>/out.*
+  // First try <renderId>/out.*, then old "renders/<renderId>/out.*"
+  const prefixes = ["", "renders/"];
 
   for (const prefix of prefixes) {
     for (const ext of exts) {
-      const Key = `${prefix}${prefix ? "" : ""}${renderId}/out.${ext}`;
+      const Key = `${prefix}${renderId}/out.${ext}`;
       try {
         await s3.send(new HeadObjectCommand({ Bucket: bucket, Key }));
         return Key; // found!
@@ -50,8 +47,6 @@ export async function GET(req: Request) {
   const renderId = searchParams.get("renderId") || "";
   const bucketName = searchParams.get("bucketName") || "";
   const fnFromClient = searchParams.get("functionName") || "";
-  const region =
-    (process.env.REMOTION_REGION as AwsRegion) || ("ap-south-1" as AwsRegion);
 
   if (!renderId || !bucketName) {
     return NextResponse.json(
@@ -69,35 +64,21 @@ export async function GET(req: Request) {
       "Too many progress checks."
     );
 
-    // Resolve function name
-    const functionName =
-      fnFromClient ||
-      process.env.REMOTION_FUNCTION_NAME ||
-      (await (async () => {
-        const fns = await getFunctions({ region, compatibleOnly: true });
-        return fns[0]?.functionName;
-      })());
-
-    if (!functionName) {
-      return NextResponse.json(
-        { error: "Cannot resolve functionName" },
-        { status: 500 }
-      );
-    }
+    // Typed region + default function name from shared helper
+    const { region, functionName: defaultFn } = lambdaCfg();
+    const functionName = fnFromClient || defaultFn;
 
     // Ask Remotion for progress
     const progress = await getRenderProgress({
-      region,
+      region,       // AwsRegion (narrow type)
       renderId,
       bucketName,
       functionName,
     });
 
-    // If Remotion already signals completion, try to attach an outKey for the client.
+    // If done, try to ensure we return an outKey (so the client can presign)
     if ((progress as any)?.done === true) {
       const s3 = new S3Client({ region });
-
-      // If Remotion already returned an outKey, pass it through.
       const alreadyHasKey =
         typeof (progress as any).outKey === "string" &&
         (progress as any).outKey.length > 0;
@@ -106,7 +87,6 @@ export async function GET(req: Request) {
         return NextResponse.json(progress);
       }
 
-      // Otherwise probe S3 to figure it out.
       const probed = await probeOutKey({
         s3,
         bucket: bucketName,
@@ -117,19 +97,19 @@ export async function GET(req: Request) {
         return NextResponse.json({ ...progress, outKey: probed });
       }
 
-      // Done but not found (rare race) — still return done:true so the client can retry presign shortly.
+      // Done but key not found yet — return done:true and let client retry presign shortly
       return NextResponse.json(progress);
     }
 
-    // Not done yet — just pass through live progress (framesRendered, totalFrames, ETA, etc.)
+    // Not done yet — pass through live progress (framesRendered, totalFrames, ETA, etc.)
     return NextResponse.json(progress);
   } catch (e: any) {
     const msg = String(e?.message || "");
 
-    // When Lambda says it "Cannot merge stills", it’s usually a single-frame export:
-    // fall back to S3 probing to determine the real outKey (and mark done if we find it).
+    // Single-frame export oddity: "Cannot merge stills" → probe S3 and return synthesized result
     if (msg.includes("Cannot merge stills")) {
       try {
+        const { region } = lambdaCfg();
         const s3 = new S3Client({ region });
         const probed = await probeOutKey({
           s3,
@@ -145,18 +125,17 @@ export async function GET(req: Request) {
             errors: [],
           });
         }
-        // Not found yet — keep the client polling
         return NextResponse.json({
           done: false,
           overallProgress: 0,
           errors: [],
         });
       } catch {
-        /* fall through to generic handler */
+        /* fall through */
       }
     }
 
-    // Another common transient parsing hiccup from the Lambda API
+    // Transient JSON parsing issue from Lambda API — keep polling
     if (msg.includes("Invalid JSON")) {
       return NextResponse.json({
         done: false,
@@ -165,12 +144,8 @@ export async function GET(req: Request) {
       });
     }
 
-    // Signal throttling to the client — your UI already backs off on 429
     const status = msg.includes("Rate") ? 429 : 500;
     console.error("PROGRESS ERROR", e);
-    return NextResponse.json(
-      { error: msg || "Progress failed" },
-      { status }
-    );
+    return NextResponse.json({ error: msg || "Progress failed" }, { status });
   }
 }

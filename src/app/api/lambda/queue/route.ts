@@ -14,8 +14,8 @@ import {
   getIP,
 } from "@/lib/ops";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import { lambdaCfg, runtime, dynamic } from "../_common";
+export { runtime, dynamic };
 
 const perIpRenderLimiter = makeLimiter(
   Number(process.env.RENDER_PER_IP_PER_MIN || 4),
@@ -57,38 +57,14 @@ export async function POST(req: Request) {
       const quality = body.quality ?? "hd";
 
       const isGif =
-        body.codec === "gif" ||
-        body.container === "gif" ||
-        quality === "gif";
+        body.codec === "gif" || body.container === "gif" || quality === "gif";
 
       const codec: RenderMediaOnLambdaInput["codec"] = isGif
         ? "gif"
         : (body.codec as any) || "h264";
       const ext = isGif ? "gif" : "mp4";
 
-      const region =
-        (process.env.REMOTION_REGION as AwsRegion) || ("ap-south-1" as AwsRegion);
-      const serve =
-        process.env.REMOTION_SERVE_URL || process.env.REMOTION_SITE_NAME || "";
-      if (!serve) {
-        return NextResponse.json(
-          { error: "Missing REMOTION_SERVE_URL (or REMOTION_SITE_NAME)" },
-          { status: 500 }
-        );
-      }
-
-      let functionName =
-        process.env.REMOTION_FUNCTION_NAME ||
-        (await (async () => {
-          const fns = await getFunctions({ region, compatibleOnly: true });
-          return fns[0]?.functionName;
-        })());
-      if (!functionName) {
-        return NextResponse.json(
-          { error: "No compatible Lambda function found. Deploy one first." },
-          { status: 500 }
-        );
-      }
+      const { region, functionName, serveUrl } = lambdaCfg();
 
       const isFree = quality === "free";
       const defaultSize =
@@ -110,16 +86,20 @@ export async function POST(req: Request) {
       const args: RenderMediaOnLambdaInput = {
         region,
         functionName,
-        serveUrl: serve,
+        serveUrl,
         composition: compositionId,
-        inputProps: { ...inputProps, watermark: isFree, tier: isFree ? "free" : "hd" },
+        inputProps: {
+          ...inputProps,
+          watermark: isFree,
+          tier: isFree ? "free" : "hd",
+        },
         codec,
         crf: isGif ? undefined : isFree ? 28 : 18,
         jpegQuality: isGif ? undefined : isFree ? 80 : 100,
         audioBitrate: isGif ? undefined : isFree ? "128k" : "192k",
         privacy: "private",
         maxRetries: 1,
-        timeoutInMilliseconds: 30_000,
+        // timeoutInMilliseconds: 120_000, // (optional) ok to omit
         ...size,
       };
 
@@ -144,7 +124,9 @@ export async function POST(req: Request) {
     }
   } catch (e: any) {
     const status = e?.status || 500;
-    const headers = e?.retryAfter ? { "Retry-After": String(e.retryAfter) } : undefined;
+    const headers = e?.retryAfter
+      ? { "Retry-After": String(e.retryAfter) }
+      : undefined;
     console.error("QUEUE ERROR", e);
     return NextResponse.json(
       { error: e?.message || "Queue failed" },
