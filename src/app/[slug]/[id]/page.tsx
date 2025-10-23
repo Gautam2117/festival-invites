@@ -1,6 +1,6 @@
 // src/app/[slug]/[id]/page.tsx
 import Image from "next/image";
-import type { Metadata } from "next";
+import type { Metadata, PageProps } from "next";
 import type { Invite } from "@/types/invite";
 import ShareBar from "@/components/ShareBar";
 
@@ -35,9 +35,9 @@ async function fetchInvite(id: string): Promise<Invite | null> {
 type RouteParams = { slug: string; id: string };
 
 export async function generateMetadata(
-  { params }: { params: RouteParams }
+  { params }: PageProps<RouteParams>
 ): Promise<Metadata> {
-  const { id } = params;
+  const { id } = await params; // ✅ v15: await params
   const inv = await fetchInvite(id);
   if (!inv) return { title: "Invite not found" };
 
@@ -168,9 +168,9 @@ function SectionTabs({ hasRSVP, hasWishes }: { hasRSVP: boolean; hasWishes: bool
 /* Page                                          */
 /* --------------------------------------------- */
 export default async function InvitePage(
-  { params }: { params: RouteParams }
+  { params }: PageProps<RouteParams>
 ) {
-  const { slug, id } = params;
+  const { slug, id } = await params; // ✅ v15: await params
   const inv = await fetchInvite(id);
 
   if (!inv || inv.slug !== slug) {
