@@ -34,44 +34,41 @@ export default function Home() {
 
           {/* Desktop nav */}
           <nav className="hidden items-center gap-6 text-sm text-ink-700 md:flex">
-            <Link href="#templates" prefetch={false} className="hover:text-ink-900">
+            <a href="#browse" className="hover:text-ink-900">
               Templates
-            </Link>
+            </a>
             <Link href="/about" prefetch={false} className="hover:text-ink-900">
               About
             </Link>
-            <Link
-              href="/builder"
-              prefetch={false}
-              className="btn"
-              aria-label="Start building your invite"
-            >
+            <Link href="/builder" prefetch={false} className="btn">
               Start Building
             </Link>
           </nav>
 
-          {/* Mobile drawer (CSS-only) */}
+          {/* Mobile drawer */}
           <details className="md:hidden">
             <summary className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-ink-800 hover:bg-white/80">
-              <Menu className="h-5 w-5" aria-hidden />
-              Menu
+              <Menu className="h-5 w-5" aria-hidden /> Menu
             </summary>
             <div className="absolute left-0 right-0 top-full border-b border-white/60 bg-white">
-              <nav
-                id="mobile-nav"
-                className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-3 text-sm"
-              >
-                <Link href="#templates" prefetch={false} className="rounded-md px-3 py-2 hover:bg-white">
+              <nav className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-3 text-sm">
+                <a
+                  href="#browse"
+                  className="rounded-md px-3 py-2 hover:bg-white"
+                >
                   Templates
-                </Link>
-                <Link href="/about" prefetch={false} className="rounded-md px-3 py-2 hover:bg-white">
+                </a>
+                <Link
+                  href="/about"
+                  prefetch={false}
+                  className="rounded-md px-3 py-2 hover:bg-white"
+                >
                   About
                 </Link>
                 <Link
                   href="/builder"
                   prefetch={false}
                   className="btn mt-1 inline-flex w-max"
-                  aria-label="Start building your invite"
                 >
                   Start Building
                 </Link>
@@ -122,12 +119,12 @@ export default function Home() {
 
           {/* Tabbed: Festivals / Daily Wishes */}
           <div
-            id="templates"
-            className="mx-auto max-w-6xl px-4"
+            id="browse"
+            className="mx-auto max-w-6xl px-4 scroll-mt-24 md:scroll-mt-28"
             style={
               {
                 containIntrinsicSize: "1200px 1100px",
-                ["contentVisibility" as any]: "auto",
+                contentVisibility: "auto",
               } as React.CSSProperties
             }
           >
@@ -140,8 +137,15 @@ export default function Home() {
       <div className="fixed inset-x-0 bottom-3 z-40 mx-auto w-full max-w-6xl px-4 md:hidden pb-[env(safe-area-inset-bottom)]">
         <div className="rounded-2xl border border-white/70 bg-white/95 p-2 shadow-md">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm text-ink-800">Create a festive invite</span>
-            <Link href="/builder" prefetch={false} className="btn" aria-label="Create an invite now">
+            <span className="text-sm text-ink-800">
+              Create a festive invite
+            </span>
+            <Link
+              href="/builder"
+              prefetch={false}
+              className="btn"
+              aria-label="Create an invite now"
+            >
               Create now
             </Link>
           </div>
@@ -155,7 +159,12 @@ export default function Home() {
             © <Year /> Festival Invites. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
-            <Link href="/builder" prefetch={false} className="btn" aria-label="Create an invite now">
+            <Link
+              href="/builder"
+              prefetch={false}
+              className="btn"
+              aria-label="Create an invite now"
+            >
               Create now
             </Link>
             <Link href="#templates" prefetch={false} className="underline">

@@ -391,7 +391,6 @@ export default function TemplateGrid({
 
   return (
     <section
-      id="templates"
       className="relative mx-auto max-w-6xl px-4 pb-20"
       style={{ containIntrinsicSize: "1200px 900px" }}
       aria-busy={loading}
@@ -600,47 +599,37 @@ export default function TemplateGrid({
  * previously viewed content doesn’t “disappear” or reload on return.
  */
 export function TabbedTemplates() {
-  const [tab, setTab] = useState<"invite" | "wish">("invite");
-
-  const base =
-    "px-4 py-2 rounded-full text-sm font-medium transition-colors focus:outline-none ring-1 ring-inset";
-  const active =
-    "bg-gradient-to-r from-amber-500 via-fuchsia-500 to-indigo-600 text-white shadow-lg ring-white/20";
-  const inactive =
-    "bg-white/95 text-ink-900 ring-gray-300 hover:bg-white md:backdrop-blur";
-
+  const [tab, setTab] = React.useState<"festivals"|"wishes">("festivals");
   return (
-    <section className="relative">
-      <div className="mx-auto max-w-6xl px-4">
-        <div role="tablist" aria-label="Choose template type" className="mb-5 flex justify-center gap-2">
-          <button
-            role="tab"
-            aria-selected={tab === "invite"}
-            className={`${base} ${tab === "invite" ? active : inactive}`}
-            onClick={() => setTab("invite")}
-          >
-            Festivals
-          </button>
-          <button
-            role="tab"
-            aria-selected={tab === "wish"}
-            className={`${base} ${tab === "wish" ? active : inactive}`}
-            onClick={() => setTab("wish")}
-          >
-            Daily&nbsp;Wishes
-          </button>
+    <div className="pb-20">
+      {/* Sticky segmented control */}
+      <div className="sticky top-[64px] z-20 bg-white/80 backdrop-blur supports-[backdrop-filter]:backdrop-blur-md">
+        <div className="mx-auto max-w-6xl px-4 py-2">
+          <div className="inline-grid grid-cols-2 rounded-xl border border-white/60 bg-white shadow-sm">
+            <button
+              onClick={() => setTab("festivals")}
+              className={`px-4 py-2 text-sm rounded-xl ${tab==="festivals"?"bg-ink-900 text-white":"text-ink-800"}`}
+            >
+              Festivals
+            </button>
+            <button
+              onClick={() => setTab("wishes")}
+              className={`px-4 py-2 text-sm rounded-xl ${tab==="wishes"?"bg-ink-900 text-white":"text-ink-800"}`}
+            >
+              Daily wishes
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Keep both mounted; toggle visibility only */}
-      <div className="relative">
-        <div style={{ display: tab === "invite" ? "block" : "none" }}>
+      {/* Content (kept short, lazy-painted) */}
+      <div className="mt-4" style={{ contentVisibility: "auto", containIntrinsicSize: "1200px 900px" } as any}>
+        {tab === "festivals" ? (
           <TemplateGrid kindFilter="invite" />
-        </div>
-        <div style={{ display: tab === "wish" ? "block" : "none" }}>
+        ) : (
           <TemplateGrid kindFilter="wish" />
-        </div>
+        )}
       </div>
-    </section>
+    </div>
   );
 }

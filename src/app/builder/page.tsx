@@ -283,6 +283,25 @@ function downloadFromUrl(url: string, filename: string) {
   setTimeout(() => window.open(url, "_blank", "noopener"), 600);
 }
 
+async function safeDownload(url: string, filename: string) {
+  try {
+    const res = await fetch(url, { cache: "no-store", mode: "cors" });
+    if (!res.ok) throw new Error("Download failed");
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch {
+    // Fallback: open in a new tab (iOS Safari)
+    window.open(url, "_blank", "noopener");
+  }
+}
+
 async function copyToClipboard(txt: string) {
   try {
     await navigator.clipboard.writeText(txt);
@@ -998,7 +1017,7 @@ function BuilderPageInner() {
 
     setDownloadUrl(finalUrl);
     setDownloadName(filename);
-    downloadFromUrl(finalUrl, filename);
+    safeDownload(finalUrl, filename);
 
     // Public link creation (non-blocking)
     try {
@@ -1102,7 +1121,7 @@ function BuilderPageInner() {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => downloadFromUrl(downloadUrl, downloadName)}
+                onClick={() => safeDownload(downloadUrl, downloadName)}
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-white text-sm font-medium shadow hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <Download className="h-4 w-4" />
@@ -1947,18 +1966,14 @@ function BuilderPageInner() {
                   mode === "video" ? "aspect-[9/16]" : "aspect-[1/1]"
                 } max-h-[80dvh]`}
               >
-                {/* accent wash */}
                 <div
                   className={`pointer-events-none absolute inset-0 sm:opacity-25 opacity-10 bg-gradient-to-tr ${meta.accent}`}
                   aria-hidden
                 />
 
-                {/* mount the player only when visible to save CPU on phones */}
                 <div className="relative w-full h-full">
-                  {/* ▸ When the preview is in the viewport */}
                   {previewInView ? (
                     mode === "video" ? (
-                      /* ---------------- 9 × 16 PLAYER ---------------- */
                       <Player
                         key={playerKey}
                         component={FestivalIntro}
@@ -1993,34 +2008,40 @@ function BuilderPageInner() {
                         }}
                       />
                     ) : (
-                      /* --------------- 1 × 1 STILL ------------------ */
-                      /* We DON’T spin up another <Player>.
-                      Instead we hit our existing /api/lambda/still route with very small dimensions – this keeps it < 1 s and free. */
-                      <img
+                      // ✅ Use the ImageCard composition instead of long GET URLs
+                      <Player
                         key={playerKey}
-                        className="w-full h-full object-cover"
-                        src={
-                          `/api/lambda/still?` +
-                          `compositionId=image-card` +
-                          `&quality=free` + // low-cost
-                          `&format=png` +
-                          `&frame=60` +
-                          `&preview=1` + // flag handled server-side
-                          `&bg=${encodeURIComponent(bgForPlayer ?? "")}` +
-                          `&title=${encodeURIComponent(title)}` +
-                          `&names=${encodeURIComponent(names ?? "")}` +
-                          `&date=${encodeURIComponent(date ?? "")}` +
-                          `&venue=${encodeURIComponent(venue ?? "")}`
-                        }
-                        alt="Preview still"
-                        /* Avoid flicker while typing */
+                        component={ImageCard}
+                        autoPlay={!prefersReducedMotion}
+                        loop
+                        controls={false}
+                        durationInFrames={120}
+                        fps={30}
+                        compositionWidth={1080}
+                        compositionHeight={1080}
+                        inputProps={{
+                          title,
+                          names,
+                          date,
+                          venue,
+                          bg: bgForPlayer,
+                          tier: paid ? "hd" : "free",
+                          watermark: !paid,
+                          watermarkStrategy: !paid ? wmStrategy : "ribbon",
+                          wmSeed,
+                          wmText,
+                          wmOpacity,
+                          isWish,
+                        }}
+                        acknowledgeRemotionLicense
                         style={{
-                          background: "url(/spinner.svg) center/24px no-repeat",
+                          width: "100%",
+                          height: "100%",
+                          background: "transparent",
                         }}
                       />
                     )
                   ) : (
-                    /* ---------- Off-screen placeholder ------------- */
                     <div className="absolute inset-0 grid place-items-center">
                       <div className="rounded-lg border bg-white/90 px-3 py-1 text-xs text-ink-800">
                         Preview paused to save battery
@@ -2047,7 +2068,6 @@ function BuilderPageInner() {
                 adds premium effects.
               </p>
 
-              {/* Social preview studio when PNG is exported */}
               {downloadUrl && downloadName.endsWith(".png") && (
                 <div className="mt-4">
                   <SocialPreviewStudio

@@ -147,7 +147,7 @@ function Card(p: CardProps) {
       prefetch={false}
       className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-amber-400/60 rounded-2xl"
       onMouseMove={onMove}
-      style={{ contain: "content" }} // isolate paints per card
+      style={{ contain: "content", touchAction: "pan-y" }}
     >
       <motion.div
         whileHover={hoverLift}
