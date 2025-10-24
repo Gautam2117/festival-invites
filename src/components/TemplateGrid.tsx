@@ -1,9 +1,8 @@
-// src/components/TemplateGrid.tsx
 "use client";
 
 import Image from "next/image";
 import Link from "next/link";
-import React, { useDeferredValue, useEffect, useMemo, useState } from "react";
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { templates } from "@/templates";
 import { Search, Sparkles, Filter, X } from "lucide-react";
@@ -15,16 +14,15 @@ type T = {
   title: string;
   thumbnail: string;
   languages?: string[];
-  accent?: string; // e.g. "from-amber-400 via-rose-400 to-indigo-500"
+  accent?: string;
+  // expects: (t as any).kind = "invite" | "wish"
 };
 
 type TemplateGridProps = {
-  /** Show shimmering placeholders (useful while fetching templates server-side) */
   loading?: boolean;
-  /** How many skeleton cards to render on desktop */
   skeletonCount?: number;
-  /** How many skeleton cards to render on mobile rail */
   skeletonRailCount?: number;
+  kindFilter?: "invite" | "wish" | "all";
 };
 
 const fadeUp = (i = 0) => ({
@@ -38,14 +36,13 @@ const fadeUp = (i = 0) => ({
 function FestiveGlow() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-      {/* Hide the heavy glows on mobile to avoid jank */}
       <div className="absolute -top-14 left-1/2 hidden h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(255,193,7,0.18),transparent_60%)] blur-3xl md:block" />
       <div className="absolute right-[-8%] top-24 hidden h-[28rem] w-[28rem] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(244,67,54,0.12),transparent_60%)] blur-3xl md:block" />
     </div>
   );
 }
 
-/* ----------------------------- Pointer helper ----------------------------- */
+/* ----------------------------- Hooks/helpers ------------------------------ */
 function useFinePointer() {
   const [fine, setFine] = useState(false);
   useEffect(() => {
@@ -56,7 +53,20 @@ function useFinePointer() {
   return fine;
 }
 
-/* --------------------------------- Chips ---------------------------------- */
+function useMedia(query: string) {
+  const [ok, setOk] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const m = window.matchMedia(query);
+    const on = () => setOk(m.matches);
+    on();
+    m.addEventListener?.("change", on);
+    return () => m.removeEventListener?.("change", on);
+  }, [query]);
+  return ok;
+}
+
+/* ------------------------------ Chips & UI -------------------------------- */
 function LangChip({
   label,
   active,
@@ -87,44 +97,63 @@ function LangChip({
 }
 
 /* ------------------------------- Skeletons -------------------------------- */
-function Line({ className = "" }: { className?: string }) {
+function PremiumCardSkeleton() {
   return (
-    <div
-      className={`h-3 w-full rounded bg-ink-200/60 dark:bg-white/10 ${className}`}
-    />
-  );
-}
-
-function ChipSkeleton() {
-  return (
-    <div className="h-6 w-16 rounded-full bg-ink-200/60 dark:bg-white/10" />
-  );
-}
-
-function CardSkeleton() {
-  return (
-    <div
-      className="animate-pulse rounded-2xl bg-gradient-to-br from-ink-50 to-white p-[1px] dark:from-zinc-800/40 dark:to-zinc-800/10"
-      role="status"
-      aria-label="Loading template"
-    >
-      <article className="overflow-hidden rounded-[14px] bg-white/92 shadow-sm ring-1 ring-black/5 md:backdrop-blur dark:bg-zinc-900/60">
-        <div className="relative aspect-[16/9] w-full">
-          <div className="absolute inset-0 bg-ink-200/60 dark:bg-white/10" />
-        </div>
+    <div className="rounded-2xl bg-gradient-to-br from-ink-50 to-white p-[1px] dark:from-zinc-800/40 dark:to-zinc-800/10">
+      <article className="relative overflow-hidden rounded-[14px] bg-white/92 shadow-sm ring-1 ring-black/5 md:backdrop-blur dark:bg-zinc-900/60">
+        <div className="relative aspect-[16/9] w-full shimmer" />
         <div className="p-4">
-          <Line className="h-4 w-3/4" />
+          <div className="h-4 w-3/4 rounded bg-ink-200/60 dark:bg-white/10" />
           <div className="mt-3 flex gap-2">
             <div className="h-5 w-14 rounded-full bg-ink-200/60 dark:bg-white/10" />
             <div className="h-5 w-10 rounded-full bg-ink-200/60 dark:bg-white/10" />
           </div>
           <div className="mt-3 h-px w-full bg-ink-200/60 dark:bg-white/10" />
           <div className="mt-3 flex items-center justify-between">
-            <Line className="w-28" />
-            <Line className="w-16" />
+            <div className="h-3 w-28 rounded bg-ink-200/60 dark:bg-white/10" />
+            <div className="h-3 w-16 rounded bg-ink-200/60 dark:bg-white/10" />
           </div>
         </div>
       </article>
+
+      {/* Shimmer keyframes once per component tree */}
+      <style jsx>{`
+        .shimmer {
+          position: relative;
+          overflow: hidden;
+          border-radius: 12px;
+          background: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.02));
+        }
+        .shimmer::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(
+            110deg,
+            rgba(255,255,255,0) 0%,
+            rgba(255,255,255,0.7) 40%,
+            rgba(255,255,255,0) 80%
+          );
+          transform: translateX(-100%);
+          animation: shimmer 1.6s ease-in-out infinite;
+        }
+        @keyframes shimmer {
+          100% { transform: translateX(100%); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function GridSkeleton({ count = 8 }: { count?: number }) {
+  return (
+    <div
+      className="grid grid-cols-2 gap-6 sm:grid lg:grid-cols-3 2xl:grid-cols-4"
+      aria-hidden
+    >
+      {Array.from({ length: count }).map((_, i) => (
+        <PremiumCardSkeleton key={`gs-${i}`} />
+      ))}
     </div>
   );
 }
@@ -135,11 +164,13 @@ function TemplateCard({
   i,
   priority = false,
   finePointer,
+  onFirstPaint,
 }: {
   t: T;
   i: number;
   priority?: boolean;
   finePointer: boolean;
+  onFirstPaint?: () => void;
 }) {
   const prefersReducedMotion = useReducedMotion();
   const [ready, setReady] = useState(false);
@@ -153,7 +184,7 @@ function TemplateCard({
       className="group relative block focus:outline-none"
       aria-label={`Open ${t.title} template`}
       prefetch={false}
-      style={{ contain: "content" }} // localize paints
+      style={{ contain: "content" }}
     >
       <motion.div
         {...fadeUp(i)}
@@ -166,13 +197,8 @@ function TemplateCard({
         <article className="relative overflow-hidden rounded-[14px] bg-white/92 shadow-sm ring-1 ring-black/5 md:backdrop-blur dark:bg-zinc-900/60">
           {/* Media */}
           <div className="relative aspect-[16/9] w-full">
-            {/* Subtle wash behind image */}
-            <div
-              className={`pointer-events-none absolute inset-0 bg-gradient-to-tr ${accent} opacity-[0.12]`}
-            />
-            {!ready && (
-              <div className="absolute inset-0 animate-pulse bg-ink-200/60 dark:bg-white/10" />
-            )}
+            <div className={`pointer-events-none absolute inset-0 bg-gradient-to-tr ${accent} opacity-[0.12]`} />
+            {!ready && <div className="absolute inset-0 shimmer rounded-[12px]" />}
             <Image
               src={t.thumbnail}
               alt={t.title}
@@ -182,14 +208,15 @@ function TemplateCard({
               loading={priority ? undefined : "lazy"}
               decoding="async"
               sizes="(max-width:640px) 84vw, (max-width:1024px) 45vw, 30vw"
-              className={`object-cover transition-transform duration-300 group-hover:scale-[1.03]`}
+              className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
               style={{ willChange: "transform,opacity", transform: "translateZ(0)" }}
               draggable={false}
-              onLoadingComplete={() => setReady(true)}
+              onLoad={() => {
+                setReady(true);
+                onFirstPaint?.();
+              }}
             />
-            {/* Bottom fade */}
             <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/35 to-transparent" />
-            {/* Hover CTA (fine pointer only) */}
             {finePointer && (
               <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                 <div className="rounded-xl bg-white/95 px-3 py-1.5 text-xs font-semibold text-ink-900 shadow-sm md:backdrop-blur">
@@ -205,20 +232,10 @@ function TemplateCard({
               aria-hidden
             >
               <g filter="url(#glow)">
-                <path
-                  d="M30 10l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z"
-                  fill="url(#g1)"
-                />
+                <path d="M30 10l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z" fill="url(#g1)" />
               </g>
               <defs>
-                <radialGradient
-                  id="g1"
-                  cx="0"
-                  cy="0"
-                  r="1"
-                  gradientUnits="userSpaceOnUse"
-                  gradientTransform="translate(30 27) rotate(90) scale(14 14)"
-                >
+                <radialGradient id="g1" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(30 27) rotate(90) scale(14 14)">
                   <stop stopColor="#FFD166" />
                   <stop offset="1" stopColor="#FF4D8D" stopOpacity="0.7" />
                 </radialGradient>
@@ -248,10 +265,7 @@ function TemplateCard({
               </div>
             )}
 
-            {/* Divider shimmer */}
             <div className="mt-3 h-px w-full overflow-hidden rounded-full bg-gradient-to-r from-transparent via-ink-200 to-transparent dark:via-white/10" />
-
-            {/* Footer row */}
             <div className="mt-2 flex items-center justify-between text-[11px] text-ink-700">
               <span className="inline-flex items-center gap-1">
                 <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
@@ -270,6 +284,20 @@ function TemplateCard({
           <div className="pointer-events-none absolute inset-0 rounded-[14px] ring-1 ring-black/5 dark:ring-white/10" />
         </article>
       </motion.div>
+
+      {/* local shimmer style for card */}
+      <style jsx>{`
+        .shimmer {
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(110deg, #f3f4f6 8%, #ffffff 18%, #f3f4f6 33%);
+          background-size: 200% 100%;
+          animation: shimmer 1.6s ease-in-out infinite;
+        }
+        @keyframes shimmer {
+          to { background-position: -200% 0; }
+        }
+      `}</style>
     </Link>
   );
 }
@@ -279,12 +307,32 @@ export default function TemplateGrid({
   loading = false,
   skeletonCount = 8,
   skeletonRailCount = 4,
+  kindFilter = "all",
 }: TemplateGridProps) {
   const finePointer = useFinePointer();
+  const isDesktop = useMedia("(min-width: 1024px)");
 
   const [query, setQuery] = useState("");
   const [lang, setLang] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+
+  /** Grid hydration + first-paint control */
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => { setHydrated(true); }, []);
+
+  /** Show an overall grid skeleton until the first N images for the current view have painted */
+  const targetFirstPaint = isDesktop ? 6 : 3;
+  const paintedRef = useRef(0);
+  const [gridReady, setGridReady] = useState(false);
+  const markPaint = () => {
+    paintedRef.current += 1;
+    if (paintedRef.current >= targetFirstPaint) setGridReady(true);
+  };
+  useEffect(() => {
+    // reset when filters change
+    paintedRef.current = 0;
+    setGridReady(false);
+  }, [kindFilter, lang]);
 
   // Defer the heavy filter work while typing
   const deferredQuery = useDeferredValue(query);
@@ -300,6 +348,10 @@ export default function TemplateGrid({
     if (loading) return [] as T[];
     let arr = templates as T[];
 
+    if (kindFilter !== "all") {
+      arr = arr.filter((t) => (t as any).kind === kindFilter);
+    }
+
     if (lang) arr = arr.filter((t) => t.languages?.includes(lang));
 
     const q = deferredQuery.trim().toLowerCase();
@@ -312,7 +364,7 @@ export default function TemplateGrid({
       );
     }
     return arr;
-  }, [deferredQuery, lang, loading]);
+  }, [deferredQuery, lang, loading, kindFilter]);
 
   const count = list.length;
 
@@ -320,13 +372,28 @@ export default function TemplateGrid({
   const PRIORITY_DESKTOP = 6;
   const PRIORITY_MOBILE = 3;
 
+  const heading =
+    kindFilter === "wish"
+      ? "Daily Wishes"
+      : kindFilter === "invite"
+      ? "Festival Templates"
+      : "Popular Templates";
+
+  const subcopy =
+    kindFilter === "wish"
+      ? "Fresh daily greetings & quotes — perfect for WhatsApp status and DMs."
+      : "Festive intros, wishes & invite designs — ready for WhatsApp.";
+
+  const placeholder =
+    kindFilter === "wish"
+      ? "Search wishes, e.g. Good morning / Anniversary"
+      : "Search templates, e.g. Diwali / Birthday / Wedding";
+
   return (
     <section
       id="templates"
       className="relative mx-auto max-w-6xl px-4 pb-20"
-      style={{
-        containIntrinsicSize: "1200px 900px",
-      }}
+      style={{ containIntrinsicSize: "1200px 900px" }}
       aria-busy={loading}
     >
       <FestiveGlow />
@@ -335,14 +402,12 @@ export default function TemplateGrid({
       <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="font-display text-2xl tracking-tight sm:text-3xl">
-            Popular{" "}
+            {heading.split(" ")[0]}{" "}
             <span className="bg-gradient-to-r from-amber-500 via-rose-500 to-indigo-500 bg-clip-text text-transparent">
-              Templates
+              {heading.split(" ").slice(1).join(" ") || ""}
             </span>
           </h2>
-          <p className="mt-1 text-sm text-ink-700">
-            Festive intros, wishes & invite designs — ready for WhatsApp.
-          </p>
+          <p className="mt-1 text-sm text-ink-700">{subcopy}</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -353,17 +418,8 @@ export default function TemplateGrid({
             aria-label="Open the full builder"
           >
             See all
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              className="opacity-70"
-              aria-hidden
-            >
-              <path
-                fill="currentColor"
-                d="M8.59 16.59L13.17 12L8.59 7.41L10 6l6 6-6 6z"
-              />
+            <svg width="16" height="16" viewBox="0 0 24 24" className="opacity-70" aria-hidden>
+              <path fill="currentColor" d="M8.59 16.59L13.17 12L8.59 7.41L10 6l6 6-6 6z" />
             </svg>
           </Link>
         </div>
@@ -381,7 +437,7 @@ export default function TemplateGrid({
             id="template-search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search templates, e.g. Diwali / Birthday / Wedding"
+            placeholder={placeholder}
             className="w-full bg-transparent text-sm text-ink-900 placeholder:text-ink-500 focus:outline-none"
             aria-label="Search templates"
             enterKeyHint="search"
@@ -417,9 +473,7 @@ export default function TemplateGrid({
       {/* Language chips */}
       <div
         id="language-toolbar"
-        className={`mb-5 flex gap-2 overflow-x-auto pb-1 ${
-          showFilters ? "block" : "hidden sm:flex"
-        }`}
+        className={`mb-5 flex gap-2 overflow-x-auto pb-1 ${showFilters ? "block" : "hidden sm:flex"}`}
         role="toolbar"
         aria-label="Filter by language"
         style={
@@ -433,25 +487,16 @@ export default function TemplateGrid({
       >
         {loading ? (
           <>
-            <ChipSkeleton />
-            <ChipSkeleton />
-            <ChipSkeleton />
-            <ChipSkeleton />
+            <div className="h-6 w-16 rounded-full bg-ink-200/60 dark:bg-white/10" />
+            <div className="h-6 w-16 rounded-full bg-ink-200/60 dark:bg-white/10" />
+            <div className="h-6 w-16 rounded-full bg-ink-200/60 dark:bg-white/10" />
+            <div className="h-6 w-16 rounded-full bg-ink-200/60 dark:bg-white/10" />
           </>
         ) : (
           <>
-            <LangChip
-              label="All"
-              active={!lang}
-              onClick={() => setLang(null)}
-            />
+            <LangChip label="All" active={!lang} onClick={() => setLang(null)} />
             {languages.map((l) => (
-              <LangChip
-                key={l}
-                label={l}
-                active={lang === l}
-                onClick={() => setLang(l)}
-              />
+              <LangChip key={l} label={l} active={lang === l} onClick={() => setLang(l)} />
             ))}
           </>
         )}
@@ -463,15 +508,14 @@ export default function TemplateGrid({
         aria-live="polite"
       >
         <Sparkles className="h-4 w-4 text-amber-500" aria-hidden />
-        {loading ? (
+        {loading || !hydrated ? (
           <span className="inline-flex items-center gap-2">
-            <span className="h-3 w-16 animate-pulse rounded bg-ink-200/60 dark:bg-white/10" />
+            <span className="h-3 w-16 rounded bg-ink-200/60 dark:bg-white/10" />
             loading…
           </span>
         ) : (
           <>
-            Showing <strong className="mx-1">{count}</strong> template
-            {count !== 1 ? "s" : ""}{" "}
+            Showing <strong className="mx-1">{count}</strong> template{count !== 1 ? "s" : ""}{" "}
             {lang ? (
               <>
                 in{" "}
@@ -480,83 +524,123 @@ export default function TemplateGrid({
                 </span>
               </>
             ) : null}
-            {query ? (
-              <span className="ml-1 opacity-80">for “{query}”</span>
-            ) : null}
+            {deferredQuery ? <span className="ml-1 opacity-80">for “{deferredQuery}”</span> : null}
           </>
         )}
       </div>
 
-      {/* Mobile rail (snap) */}
-      <div className="sm:hidden">
-        <div className="relative -mx-4 px-4">
-          {/* Edge fades (overlay, not mask) */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-white to-transparent"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent"
-          />
+      {/* GRID — grid-level skeleton on first paint to avoid white flash */}
+      {!hydrated || (!gridReady && !loading) ? (
+        <GridSkeleton count={isDesktop ? 8 : 4} />
+      ) : null}
 
+      {/* Render the actual grid always (so images keep loading), but hide it visually until ready */}
+      <div
+        className={`grid grid-cols-2 gap-6 sm:grid lg:grid-cols-3 2xl:grid-cols-4 ${
+          !gridReady && !loading ? "opacity-0 pointer-events-none absolute -z-10" : "opacity-100 relative"
+        } transition-opacity duration-300`}
+        style={{ containIntrinsicSize: "900px 800px" }}
+      >
+        {(loading ? Array.from({ length: skeletonCount }) : list).map((t: any, i) =>
+          loading ? (
+            <PremiumCardSkeleton key={`sk-${i}`} />
+          ) : (
+            <TemplateCard
+              key={(t as T).id}
+              t={t as T}
+              i={i}
+              finePointer={finePointer}
+              priority={i < (isDesktop ? 6 : 3)}
+              onFirstPaint={markPaint}
+            />
+          )
+        )}
+      </div>
+
+      {/* Mobile rail (kept for small screens; uses same card + shimmer) */}
+      <div className="sm:hidden mt-6">
+        <div className="relative -mx-4 px-4">
+          <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-white to-transparent" />
+          <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
           <div
             className="no-scrollbar flex snap-x snap-mandatory [scroll-snap-stop:always] gap-4 overflow-x-auto overscroll-x-contain pb-2"
             role="list"
           >
-            {(loading ? Array.from({ length: skeletonRailCount }) : list).map(
-              (item: any, i: number) => (
-                <div
-                  key={loading ? `skm-${i}` : item.id}
-                  className="snap-start shrink-0 basis-[88%] xs:basis-[72%] min-w-0"
-                  role="listitem"
-                >
-                  {loading ? (
-                    <CardSkeleton />
-                  ) : (
-                    <TemplateCard
-                      t={item as T}
-                      i={i}
-                      finePointer={finePointer}
-                      priority={i < PRIORITY_MOBILE}
-                    />
-                  )}
-                </div>
-              )
-            )}
+            {(loading ? Array.from({ length: skeletonRailCount }) : list).map((item: any, i: number) => (
+              <div key={loading ? `skm-${i}` : item.id} className="snap-start shrink-0 basis-[88%] xs:basis-[72%] min-w-0" role="listitem">
+                {loading ? (
+                  <PremiumCardSkeleton />
+                ) : (
+                  <TemplateCard
+                    t={item as T}
+                    i={i}
+                    finePointer={finePointer}
+                    priority={i < 3}
+                    onFirstPaint={markPaint}
+                  />
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Desktop grid */}
-      <div
-        className="hidden grid-cols-2 gap-6 sm:grid lg:grid-cols-3 2xl:grid-cols-4"
-        style={{
-          containIntrinsicSize: "900px 800px",
-        }}
-      >
-        {(loading ? Array.from({ length: skeletonCount }) : list).map(
-          (t: any, i) =>
-            loading ? (
-              <CardSkeleton key={`sk-${i}`} />
-            ) : (
-              <TemplateCard
-                key={(t as T).id}
-                t={t as T}
-                i={i}
-                finePointer={finePointer}
-                priority={i < PRIORITY_DESKTOP}
-              />
-            )
-        )}
-      </div>
-
       {/* Empty state */}
-      {!loading && list.length === 0 && (
+      {!loading && hydrated && gridReady && list.length === 0 && (
         <div className="mt-8 rounded-2xl border border-white/60 bg-white/95 p-6 text-center text-sm text-ink-700 md:backdrop-blur">
           No templates found. Try a different search or language.
         </div>
       )}
+    </section>
+  );
+}
+
+/* ------------------------------ Tabbed wrapper ---------------------------- */
+/** Always mount both grids so switching tabs is instant and
+ * previously viewed content doesn’t “disappear” or reload on return.
+ */
+export function TabbedTemplates() {
+  const [tab, setTab] = useState<"invite" | "wish">("invite");
+
+  const base =
+    "px-4 py-2 rounded-full text-sm font-medium transition-colors focus:outline-none ring-1 ring-inset";
+  const active =
+    "bg-gradient-to-r from-amber-500 via-fuchsia-500 to-indigo-600 text-white shadow-lg ring-white/20";
+  const inactive =
+    "bg-white/95 text-ink-900 ring-gray-300 hover:bg-white md:backdrop-blur";
+
+  return (
+    <section className="relative">
+      <div className="mx-auto max-w-6xl px-4">
+        <div role="tablist" aria-label="Choose template type" className="mb-5 flex justify-center gap-2">
+          <button
+            role="tab"
+            aria-selected={tab === "invite"}
+            className={`${base} ${tab === "invite" ? active : inactive}`}
+            onClick={() => setTab("invite")}
+          >
+            Festivals
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === "wish"}
+            className={`${base} ${tab === "wish" ? active : inactive}`}
+            onClick={() => setTab("wish")}
+          >
+            Daily&nbsp;Wishes
+          </button>
+        </div>
+      </div>
+
+      {/* Keep both mounted; toggle visibility only */}
+      <div className="relative">
+        <div style={{ display: tab === "invite" ? "block" : "none" }}>
+          <TemplateGrid kindFilter="invite" />
+        </div>
+        <div style={{ display: tab === "wish" ? "block" : "none" }}>
+          <TemplateGrid kindFilter="wish" />
+        </div>
+      </div>
     </section>
   );
 }

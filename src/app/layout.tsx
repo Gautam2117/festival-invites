@@ -1,7 +1,15 @@
-import type { Metadata } from "next";
+// app/layout.tsx (RootLayout)
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { inter, hind } from "./fonts";
 import DecorativeBG from "@/components/DecorativeBG";
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b0b0b" },
+  ],
+};
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -54,10 +62,6 @@ export const metadata: Metadata = {
     icon: [{ url: "/favicon.ico" }],
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
   },
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b0b0b" },
-  ],
   alternates: { canonical: "/" },
 };
 
@@ -71,7 +75,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   };
 
   return (
-    <html lang="en" className="h-full scroll-smooth" suppressHydrationWarning>
+    <html
+      lang="en"
+      className="h-full overflow-x-hidden scroll-smooth" // prevent horizontal jiggle & keep anchor scroll smooth
+      suppressHydrationWarning
+    >
       <head>
         {/* Color scheme + PWA niceties */}
         <meta name="color-scheme" content="light dark" />
@@ -83,8 +91,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body
-        className={`${inter.variable} ${hind.variable} relative min-h-dvh bg-gray-50 text-gray-900 antialiased selection:bg-amber-200 selection:text-amber-900`}
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        className={`${inter.variable} ${hind.variable} relative min-h-[100svh] md:min-h-dvh bg-gray-50 text-gray-900 antialiased selection:bg-amber-200 selection:text-amber-900`}
+        // Keep layout from shifting when vertical scrollbar appears/disappears
+        style={{ scrollbarGutter: "stable" as any }}
       >
         {/* Accessibility: Skip link - first element in body */}
         <a

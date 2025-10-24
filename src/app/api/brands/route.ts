@@ -22,6 +22,7 @@ async function getClientId() {
 export async function GET() {
   // List current user's brands (scoped by cid)
   const cid = await getClientId();
+  try {
   const snap = await adminDb
     .collection("brands")
     .where("cid", "==", cid)
@@ -31,6 +32,19 @@ export async function GET() {
 
   const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   return NextResponse.json({ items });
+  } catch (e) {
+    let msg = "";
+    if (e instanceof Error) {
+      msg = e.message;
+    } else {
+      msg = String(e);
+    }
+    if (msg.includes("requires an index")) {
+      // return empty but not crash dev session
+      return NextResponse.json({ items: [], indexRequired: true }, { status: 200 });
+    }
+    throw e;
+  }
 }
 
 export async function POST(req: Request) {

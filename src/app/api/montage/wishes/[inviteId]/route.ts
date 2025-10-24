@@ -99,7 +99,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ inviteId
 
     // Poll for completion
     const deadline = Date.now() + 180_000;
-    let delay = 900;
+    const BASE_BACKOFF = 1200; // ~1.2s
+    let backoff = BASE_BACKOFF;
     let finalUrl: string | null = null;
 
     while (Date.now() < deadline) {
@@ -110,15 +111,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ inviteId
           )}`
         );
         if (res.status === 429) {
-          await new Promise((r) => setTimeout(r, delay));
-          delay = Math.min(delay * 1.6, 8000);
+          await new Promise((r) => setTimeout(r, backoff));
+          backoff = Math.min(backoff * 1.7, 7000);
           continue;
         }
+        backoff = BASE_BACKOFF;
         const prog = await res.json();
         if (typeof prog?.error === "string") {
           if (prog.error.includes("Rate Exceeded")) {
-            await new Promise((r) => setTimeout(r, delay));
-            delay = Math.min(delay * 1.6, 8000);
+            await new Promise((r) => setTimeout(r, backoff));
+            backoff = Math.min(backoff * 1.7, 7000);
             continue;
           }
           return NextResponse.json({ error: prog.error }, { status: 500 });
@@ -133,8 +135,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ inviteId
       } catch {
         // tolerate network hiccups
       }
-      await new Promise((r) => setTimeout(r, delay));
-      delay = Math.min(delay * 1.25 + Math.random() * 200, 3000);
+      await new Promise((r) => setTimeout(r, Math.max(800, Math.floor(backoff * 0.75))));
     }
 
     if (!finalUrl) {

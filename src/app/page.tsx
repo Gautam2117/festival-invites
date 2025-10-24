@@ -1,15 +1,15 @@
-// src/app/page.tsx
 import Link from "next/link";
 import Image from "next/image";
 import { Menu } from "lucide-react";
 import HomeHero from "@/components/HomeHero";
-import TemplateGrid from "@/components/TemplateGrid";
 import FestivalRail from "@/components/FestivalRail";
 import Year from "@/components/Year";
+import { TabbedTemplates } from "@/components/TemplateGrid";
 
 export default function Home() {
   return (
-    <main id="main" tabIndex={-1} className="relative">
+    // Clip any overflowing decoration to prevent extra scroll height
+    <main id="main" tabIndex={-1} className="relative overflow-hidden">
       {/* Top nav (sticky, glassy, responsive) */}
       <header className="sticky top-0 z-40 border-b border-white/50 bg-white/90 md:backdrop-blur-md supports-[backdrop-filter]:bg-white/65">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
@@ -17,6 +17,7 @@ export default function Home() {
             href="/"
             className="group inline-flex items-center gap-2"
             aria-label="Festival Invites home"
+            prefetch={false}
           >
             <Image
               src="/fi_logo4.png"
@@ -33,10 +34,10 @@ export default function Home() {
 
           {/* Desktop nav */}
           <nav className="hidden items-center gap-6 text-sm text-ink-700 md:flex">
-            <Link href="#templates" className="hover:text-ink-900">
+            <Link href="#templates" prefetch={false} className="hover:text-ink-900">
               Templates
             </Link>
-            <Link href="/about" className="hover:text-ink-900">
+            <Link href="/about" prefetch={false} className="hover:text-ink-900">
               About
             </Link>
             <Link
@@ -60,16 +61,10 @@ export default function Home() {
                 id="mobile-nav"
                 className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-3 text-sm"
               >
-                <Link
-                  href="#templates"
-                  className="rounded-md px-3 py-2 hover:bg-white"
-                >
+                <Link href="#templates" prefetch={false} className="rounded-md px-3 py-2 hover:bg-white">
                   Templates
                 </Link>
-                <Link
-                  href="/about"
-                  className="rounded-md px-3 py-2 hover:bg-white"
-                >
+                <Link href="/about" prefetch={false} className="rounded-md px-3 py-2 hover:bg-white">
                   About
                 </Link>
                 <Link
@@ -86,14 +81,14 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Soft edge festive gradients (cheap) */}
+      {/* Soft edge festive gradients (anchored + clipped; no negative offsets) */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 -top-24 -z-10 h-48 bg-gradient-to-b from-amber-200/50 to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 z-[-1] h-24 md:h-40 bg-gradient-to-b from-amber-200/50 to-transparent"
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 -bottom-24 -z-10 h-48 bg-gradient-to-t from-rose-200/40 to-transparent"
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[-1] h-24 md:h-40 translate-y-1/2 bg-gradient-to-t from-rose-200/40 to-transparent"
       />
 
       {/* Main content */}
@@ -101,19 +96,23 @@ export default function Home() {
         <div className="bg-[linear-gradient(to_bottom,rgba(255,255,255,0.72),rgba(255,255,255,0.96))]">
           <HomeHero />
 
-          {/* Dynamic upcoming festivals */}
+          {/* Tighten the space below hero */}
           <div
-            className="mx-auto max-w-6xl px-4"
-            style={{
-              containIntrinsicSize: "1000px 800px",
-            }}
+            className="mx-auto -mt-6 md:-mt-10 max-w-6xl px-4"
+            style={
+              {
+                containIntrinsicSize: "1000px 800px",
+                // Avoid work until scrolled into view on mobile
+                ["contentVisibility" as any]: "auto",
+              } as React.CSSProperties
+            }
           >
             <FestivalRail />
           </div>
 
-          {/* festive divider */}
+          {/* Divider */}
           <div className="mx-auto max-w-6xl px-4">
-            <div className="relative my-10 h-px bg-gradient-to-r from-transparent via-ink-200 to-transparent">
+            <div className="relative my-6 md:my-8 h-px bg-gradient-to-r from-transparent via-ink-200 to-transparent">
               <span className="absolute left-1/2 -top-3 -translate-x-1/2 inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/80 px-3 py-1 text-xs text-ink-700 shadow-sm md:backdrop-blur">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
                 Popular picks
@@ -121,55 +120,48 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Templates */}
-          <section
+          {/* Tabbed: Festivals / Daily Wishes */}
+          <div
             id="templates"
-            aria-label="Browse templates"
-            style={{
-              containIntrinsicSize: "1200px 1200px",
-            }}
+            className="mx-auto max-w-6xl px-4"
+            style={
+              {
+                containIntrinsicSize: "1200px 1100px",
+                ["contentVisibility" as any]: "auto",
+              } as React.CSSProperties
+            }
           >
-            <TemplateGrid />
-          </section>
+            <TabbedTemplates />
+          </div>
         </div>
       </section>
 
-      {/* Sticky mobile CTA (no blur on mobile) */}
-      <div className="fixed inset-x-0 bottom-3 z-40 mx-auto w-full max-w-6xl px-4 md:hidden">
+      {/* Sticky mobile CTA (with safe-area padding) */}
+      <div className="fixed inset-x-0 bottom-3 z-40 mx-auto w-full max-w-6xl px-4 md:hidden pb-[env(safe-area-inset-bottom)]">
         <div className="rounded-2xl border border-white/70 bg-white/95 p-2 shadow-md">
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm text-ink-800">Create a festive invite</span>
-            <Link
-              href="/builder"
-              prefetch={false}
-              className="btn"
-              aria-label="Create an invite now"
-            >
+            <Link href="/builder" prefetch={false} className="btn" aria-label="Create an invite now">
               Create now
             </Link>
           </div>
         </div>
       </div>
 
-      {/* Footer (no blur on mobile) */}
-      <footer className="relative border-t border-white/60 bg-white/90 md:backdrop-blur">
+      {/* Footer (ensure above background layers) */}
+      <footer className="relative z-10 border-t border-white/60 bg-white/90 md:backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-sm text-ink-700 sm:flex-row">
           <p>
             © <Year /> Festival Invites. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
-            <Link
-              href="/builder"
-              prefetch={false}
-              className="btn"
-              aria-label="Create an invite now"
-            >
+            <Link href="/builder" prefetch={false} className="btn" aria-label="Create an invite now">
               Create now
             </Link>
-            <Link href="#templates" className="underline">
+            <Link href="#templates" prefetch={false} className="underline">
               Browse templates
             </Link>
-            <Link href="/about" className="underline">
+            <Link href="/about" prefetch={false} className="underline">
               About
             </Link>
           </div>

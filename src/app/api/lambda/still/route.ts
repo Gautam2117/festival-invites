@@ -1,4 +1,3 @@
-// src/app/api/lambda/still/route.ts
 import { NextResponse } from "next/server";
 import {
   renderStillOnLambda,
@@ -10,6 +9,7 @@ export { runtime, dynamic };
 
 export async function POST(req: Request) {
   try {
+    /* -------------------------------------------------------------------- */
     const body = (await req.json()) as {
       compositionId: "festival-intro" | "image-card";
       inputProps?: any;
@@ -18,33 +18,40 @@ export async function POST(req: Request) {
       format?: "png" | "jpeg";
     };
 
+    // QUICK-PREVIEW ↴ ------------------------------------------------------------
+    const isPreview = new URL(req.url).searchParams.get("preview") === "1";
+    if (isPreview) body.quality = "free"; // force small & cheap
+    // ---------------------------------------------------------------------------
+
     const compositionId = body.compositionId;
     const quality = body.quality ?? "hd";
+    const isFree = quality === "free";
     const inputProps = body.inputProps ?? {};
-    const frame = Number.isFinite(body.frame as number) ? (body.frame as number) : 60;
+    const frame = Number.isFinite(body.frame) ? body.frame! : 60;
     const format: "png" | "jpeg" = body.format ?? "png";
 
-    // typed + validated config (kept in one place)
+    /* -------------------------------------------------------------------- */
     const { region, functionName, serveUrl } = lambdaCfg();
 
-    const isFree = quality === "free";
-
-    // Sizes that match your queue route’s logic
     const size =
       compositionId === "image-card"
         ? isFree
-          ? { forceWidth: 720, forceHeight: 720 }
+          ? { forceWidth: 540, forceHeight: 540 } // 👈 smaller
           : { forceWidth: 1080, forceHeight: 1080 }
         : isFree
-          ? { forceWidth: 540, forceHeight: 960 }
-          : { forceWidth: 720, forceHeight: 1280 };
+        ? { forceWidth: 540, forceHeight: 960 }
+        : { forceWidth: 720, forceHeight: 1280 };
 
     const args: RenderStillOnLambdaInput = {
       region,
       functionName,
       serveUrl,
       composition: compositionId,
-      inputProps: { ...inputProps, watermark: isFree, tier: isFree ? "free" : "hd" },
+      inputProps: {
+        ...inputProps,
+        watermark: isFree,
+        tier: isFree ? "free" : "hd",
+      },
       imageFormat: format,
       privacy: "private",
       maxRetries: 1,
@@ -55,8 +62,9 @@ export async function POST(req: Request) {
 
     const { renderId, bucketName } = await renderStillOnLambda(args);
 
-    // ✅ IMPORTANT: Remotion’s default output key has NO "renders/" prefix
-    const outKey = `${renderId}/out.${format}`;
+    /* -------------------------------------------------------------------- */
+    // 🟢 Remotion’s default still key lives under `renders/…`
+    const outKey = `renders/${renderId}/out.${format}`;
 
     return NextResponse.json({
       ok: true,

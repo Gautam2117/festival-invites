@@ -102,7 +102,7 @@ export default function HomeHero() {
       )}
 
       {/* ======= Content ======= */}
-      <div className="relative mx-auto max-w-6xl px-4 pt-24 pb-20 text-center sm:pb-24">
+      <div className="relative mx-auto max-w-6xl px-4 pt-24 pb-10 text-center sm:pb-14">
         {/* Glass badge (no blur on mobile) */}
         <motion.div
           initial={false}

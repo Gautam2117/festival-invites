@@ -185,7 +185,7 @@ function Card(p: CardProps) {
               loading={p.priority ? undefined : "lazy"}
               decoding="async"
               draggable={false}
-              onLoadingComplete={() => setReady(true)}
+              onLoad={() => setReady(true)}
             />
           ) : (
             <div className="absolute inset-0 bg-gradient-to-br from-amber-200 via-rose-200 to-violet-200" />

@@ -68,9 +68,13 @@ export async function GET(req: Request) {
     const { region, functionName: defaultFn } = lambdaCfg();
     const functionName = fnFromClient || defaultFn;
 
+    await new Promise(
+      (r) => setTimeout(r, Math.random() * 300 + 200) // 200-500 ms extra
+    );
+
     // Ask Remotion for progress
     const progress = await getRenderProgress({
-      region,       // AwsRegion (narrow type)
+      region, // AwsRegion (narrow type)
       renderId,
       bucketName,
       functionName,
