@@ -859,7 +859,7 @@ function BuilderPageInner() {
 
     // Still images use a single frame + image format
     if (compositionId === "image-card" && preset !== "gif") {
-      payload.frame = 60;
+      payload.frame = 0;
       payload.format = "png";
     }
 
