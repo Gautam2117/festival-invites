@@ -57,6 +57,14 @@ type Props = {
   };
 };
 
+const resolveAsset = (p?: string | null) => {
+  if (!p) return undefined;
+  if (/^data:/.test(p) || /^https?:\/\//.test(p)) return p;  // custom upload or absolute URL
+  // strip leading slashes and a mistaken `public/`
+  const clean = p.replace(/^\/+/, '').replace(/^public\//, '');
+  return staticFile(clean); // -> assets/… relative to public dir in the site
+};
+
 /* ============================================================================
    Utilities
 ============================================================================ */
@@ -348,7 +356,7 @@ export const ImageCard: React.FC<Props> = (props) => {
   const showTile =
     mustWatermark && (watermarkStrategy === "tile" || watermarkStrategy === "ribbon+tile");
 
-  const bgSrc = resolve(bg);
+  const bgSrc = resolveAsset(bg);
 
   // Conic aurora rotation
   const angle = interpolate(frame, [0, durationInFrames || 150], [0, 360], {

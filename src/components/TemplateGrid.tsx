@@ -2,7 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { templates } from "@/templates";
 import { Search, Sparkles, Filter, X } from "lucide-react";
@@ -122,7 +128,11 @@ function PremiumCardSkeleton() {
           position: relative;
           overflow: hidden;
           border-radius: 12px;
-          background: linear-gradient(180deg, rgba(0,0,0,0.04), rgba(0,0,0,0.02));
+          background: linear-gradient(
+            180deg,
+            rgba(0, 0, 0, 0.04),
+            rgba(0, 0, 0, 0.02)
+          );
         }
         .shimmer::before {
           content: "";
@@ -130,15 +140,17 @@ function PremiumCardSkeleton() {
           inset: 0;
           background: linear-gradient(
             110deg,
-            rgba(255,255,255,0) 0%,
-            rgba(255,255,255,0.7) 40%,
-            rgba(255,255,255,0) 80%
+            rgba(255, 255, 255, 0) 0%,
+            rgba(255, 255, 255, 0.7) 40%,
+            rgba(255, 255, 255, 0) 80%
           );
           transform: translateX(-100%);
           animation: shimmer 1.6s ease-in-out infinite;
         }
         @keyframes shimmer {
-          100% { transform: translateX(100%); }
+          100% {
+            transform: translateX(100%);
+          }
         }
       `}</style>
     </div>
@@ -197,8 +209,12 @@ function TemplateCard({
         <article className="relative overflow-hidden rounded-[14px] bg-white/92 shadow-sm ring-1 ring-black/5 md:backdrop-blur dark:bg-zinc-900/60">
           {/* Media */}
           <div className="relative aspect-[16/9] w-full">
-            <div className={`pointer-events-none absolute inset-0 bg-gradient-to-tr ${accent} opacity-[0.12]`} />
-            {!ready && <div className="absolute inset-0 shimmer rounded-[12px]" />}
+            <div
+              className={`pointer-events-none absolute inset-0 bg-gradient-to-tr ${accent} opacity-[0.12]`}
+            />
+            {!ready && (
+              <div className="absolute inset-0 shimmer rounded-[12px]" />
+            )}
             <Image
               src={t.thumbnail}
               alt={t.title}
@@ -209,7 +225,10 @@ function TemplateCard({
               decoding="async"
               sizes="(max-width:640px) 84vw, (max-width:1024px) 45vw, 30vw"
               className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-              style={{ willChange: "transform,opacity", transform: "translateZ(0)" }}
+              style={{
+                willChange: "transform,opacity",
+                transform: "translateZ(0)",
+              }}
               draggable={false}
               onLoad={() => {
                 setReady(true);
@@ -232,10 +251,20 @@ function TemplateCard({
               aria-hidden
             >
               <g filter="url(#glow)">
-                <path d="M30 10l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z" fill="url(#g1)" />
+                <path
+                  d="M30 10l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z"
+                  fill="url(#g1)"
+                />
               </g>
               <defs>
-                <radialGradient id="g1" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(30 27) rotate(90) scale(14 14)">
+                <radialGradient
+                  id="g1"
+                  cx="0"
+                  cy="0"
+                  r="1"
+                  gradientUnits="userSpaceOnUse"
+                  gradientTransform="translate(30 27) rotate(90) scale(14 14)"
+                >
                   <stop stopColor="#FFD166" />
                   <stop offset="1" stopColor="#FF4D8D" stopOpacity="0.7" />
                 </radialGradient>
@@ -290,12 +319,19 @@ function TemplateCard({
         .shimmer {
           position: absolute;
           inset: 0;
-          background: linear-gradient(110deg, #f3f4f6 8%, #ffffff 18%, #f3f4f6 33%);
+          background: linear-gradient(
+            110deg,
+            #f3f4f6 8%,
+            #ffffff 18%,
+            #f3f4f6 33%
+          );
           background-size: 200% 100%;
           animation: shimmer 1.6s ease-in-out infinite;
         }
         @keyframes shimmer {
-          to { background-position: -200% 0; }
+          to {
+            background-position: -200% 0;
+          }
         }
       `}</style>
     </Link>
@@ -318,7 +354,9 @@ export default function TemplateGrid({
 
   /** Grid hydration + first-paint control */
   const [hydrated, setHydrated] = useState(false);
-  useEffect(() => { setHydrated(true); }, []);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   /** Show an overall grid skeleton until the first N images for the current view have painted */
   const targetFirstPaint = isDesktop ? 6 : 3;
@@ -417,8 +455,17 @@ export default function TemplateGrid({
             aria-label="Open the full builder"
           >
             See all
-            <svg width="16" height="16" viewBox="0 0 24 24" className="opacity-70" aria-hidden>
-              <path fill="currentColor" d="M8.59 16.59L13.17 12L8.59 7.41L10 6l6 6-6 6z" />
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              className="opacity-70"
+              aria-hidden
+            >
+              <path
+                fill="currentColor"
+                d="M8.59 16.59L13.17 12L8.59 7.41L10 6l6 6-6 6z"
+              />
             </svg>
           </Link>
         </div>
@@ -472,7 +519,9 @@ export default function TemplateGrid({
       {/* Language chips */}
       <div
         id="language-toolbar"
-        className={`mb-5 flex gap-2 overflow-x-auto pb-1 ${showFilters ? "block" : "hidden sm:flex"}`}
+        className={`mb-5 flex gap-2 overflow-x-auto pb-1 ${
+          showFilters ? "block" : "hidden sm:flex"
+        }`}
         role="toolbar"
         aria-label="Filter by language"
         style={
@@ -493,9 +542,18 @@ export default function TemplateGrid({
           </>
         ) : (
           <>
-            <LangChip label="All" active={!lang} onClick={() => setLang(null)} />
+            <LangChip
+              label="All"
+              active={!lang}
+              onClick={() => setLang(null)}
+            />
             {languages.map((l) => (
-              <LangChip key={l} label={l} active={lang === l} onClick={() => setLang(l)} />
+              <LangChip
+                key={l}
+                label={l}
+                active={lang === l}
+                onClick={() => setLang(l)}
+              />
             ))}
           </>
         )}
@@ -514,7 +572,8 @@ export default function TemplateGrid({
           </span>
         ) : (
           <>
-            Showing <strong className="mx-1">{count}</strong> template{count !== 1 ? "s" : ""}{" "}
+            Showing <strong className="mx-1">{count}</strong> template
+            {count !== 1 ? "s" : ""}{" "}
             {lang ? (
               <>
                 in{" "}
@@ -523,7 +582,9 @@ export default function TemplateGrid({
                 </span>
               </>
             ) : null}
-            {deferredQuery ? <span className="ml-1 opacity-80">for “{deferredQuery}”</span> : null}
+            {deferredQuery ? (
+              <span className="ml-1 opacity-80">for “{deferredQuery}”</span>
+            ) : null}
           </>
         )}
       </div>
@@ -536,50 +597,67 @@ export default function TemplateGrid({
       {/* Render the actual grid always (so images keep loading), but hide it visually until ready */}
       <div
         className={`grid grid-cols-2 gap-6 sm:grid lg:grid-cols-3 2xl:grid-cols-4 ${
-          !gridReady && !loading ? "opacity-0 pointer-events-none absolute -z-10" : "opacity-100 relative"
+          !gridReady && !loading
+            ? "opacity-0 pointer-events-none absolute -z-10"
+            : "opacity-100 relative"
         } transition-opacity duration-300`}
         style={{ containIntrinsicSize: "900px 800px" }}
       >
-        {(loading ? Array.from({ length: skeletonCount }) : list).map((t: any, i) =>
-          loading ? (
-            <PremiumCardSkeleton key={`sk-${i}`} />
-          ) : (
-            <TemplateCard
-              key={(t as T).id}
-              t={t as T}
-              i={i}
-              finePointer={finePointer}
-              priority={i < (isDesktop ? 6 : 3)}
-              onFirstPaint={markPaint}
-            />
-          )
+        {(loading ? Array.from({ length: skeletonCount }) : list).map(
+          (t: any, i) =>
+            loading ? (
+              <PremiumCardSkeleton key={`sk-${i}`} />
+            ) : (
+              <TemplateCard
+                key={(t as T).id}
+                t={t as T}
+                i={i}
+                finePointer={finePointer}
+                priority={i < (isDesktop ? 6 : 3)}
+                onFirstPaint={markPaint}
+              />
+            )
         )}
       </div>
 
       {/* Mobile rail (kept for small screens; uses same card + shimmer) */}
       <div className="sm:hidden mt-6">
         <div className="relative -mx-4 px-4">
-          <div aria-hidden className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-white to-transparent" />
-          <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent" />
           <div
-            className="no-scrollbar flex snap-x snap-mandatory [scroll-snap-stop:always] gap-4 overflow-x-auto overscroll-x-contain pb-2"
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-white to-transparent"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent"
+          />
+          <div
+            className="no-scrollbar flex snap-x snap-mandatory [scroll-snap-stop:always] gap-4
+              overflow-x-auto overscroll-x-contain pb-2
+              touch-pan-x will-change-transform"
             role="list"
           >
-            {(loading ? Array.from({ length: skeletonRailCount }) : list).map((item: any, i: number) => (
-              <div key={loading ? `skm-${i}` : item.id} className="snap-start shrink-0 basis-[88%] xs:basis-[72%] min-w-0" role="listitem">
-                {loading ? (
-                  <PremiumCardSkeleton />
-                ) : (
-                  <TemplateCard
-                    t={item as T}
-                    i={i}
-                    finePointer={finePointer}
-                    priority={i < 3}
-                    onFirstPaint={markPaint}
-                  />
-                )}
-              </div>
-            ))}
+            {(loading ? Array.from({ length: skeletonRailCount }) : list).map(
+              (item: any, i: number) => (
+                <div
+                  key={loading ? `skm-${i}` : item.id}
+                  className="snap-start shrink-0 basis-[88%] xs:basis-[72%] min-w-0"
+                  role="listitem"
+                >
+                  {loading ? (
+                    <PremiumCardSkeleton />
+                  ) : (
+                    <TemplateCard
+                      t={item as T}
+                      i={i}
+                      finePointer={finePointer}
+                      priority={i < 3}
+                      onFirstPaint={markPaint}
+                    />
+                  )}
+                </div>
+              )
+            )}
           </div>
         </div>
       </div>
@@ -599,7 +677,7 @@ export default function TemplateGrid({
  * previously viewed content doesn’t “disappear” or reload on return.
  */
 export function TabbedTemplates() {
-  const [tab, setTab] = React.useState<"festivals"|"wishes">("festivals");
+  const [tab, setTab] = React.useState<"festivals" | "wishes">("festivals");
   return (
     <div className="pb-20">
       {/* Sticky segmented control */}
@@ -608,13 +686,17 @@ export function TabbedTemplates() {
           <div className="inline-grid grid-cols-2 rounded-xl border border-white/60 bg-white shadow-sm">
             <button
               onClick={() => setTab("festivals")}
-              className={`px-4 py-2 text-sm rounded-xl ${tab==="festivals"?"bg-ink-900 text-white":"text-ink-800"}`}
+              className={`px-4 py-2 text-sm rounded-xl ${
+                tab === "festivals" ? "bg-ink-900 text-white" : "text-ink-800"
+              }`}
             >
               Festivals
             </button>
             <button
               onClick={() => setTab("wishes")}
-              className={`px-4 py-2 text-sm rounded-xl ${tab==="wishes"?"bg-ink-900 text-white":"text-ink-800"}`}
+              className={`px-4 py-2 text-sm rounded-xl ${
+                tab === "wishes" ? "bg-ink-900 text-white" : "text-ink-800"
+              }`}
             >
               Daily wishes
             </button>
@@ -623,7 +705,15 @@ export function TabbedTemplates() {
       </div>
 
       {/* Content (kept short, lazy-painted) */}
-      <div className="mt-4" style={{ contentVisibility: "auto", containIntrinsicSize: "1200px 900px" } as any}>
+      <div
+        className="mt-4"
+        style={
+          {
+            contentVisibility: "auto",
+            containIntrinsicSize: "1200px 900px",
+          } as any
+        }
+      >
         {tab === "festivals" ? (
           <TemplateGrid kindFilter="invite" />
         ) : (

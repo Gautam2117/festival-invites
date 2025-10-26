@@ -312,7 +312,9 @@ function Section({
           />
 
           <div
-            className="no-scrollbar flex snap-x snap-mandatory [scroll-snap-stop:always] gap-3 overflow-x-auto overscroll-x-contain pb-2"
+            className="no-scrollbar flex snap-x snap-mandatory [scroll-snap-stop:always] gap-3
+              overflow-x-auto overscroll-x-contain pb-2
+              touch-pan-x will-change-transform"
             role="list"
             aria-label={title}
           >

@@ -54,3 +54,12 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;            /* Chrome/Safari */
 }
+
+/* ↓↓↓ add to src/app/globals.css */
+@media (max-width: 450px) {
+  [data-testid='rail-featured'] [role='list'],
+  [data-testid='template-mobile-rail'] [role='list'] {
+    flex-direction: column;
+    overflow-x: visible;
+  }
+}

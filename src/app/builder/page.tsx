@@ -50,8 +50,27 @@ import {
 } from "@/lib/media-presets";
 import { usePreloadImage, usePreloadAudio } from "@/lib/use-asset-preload";
 import { nextFestival } from "@/lib/festivals";
+import { MAX_PARALLEL_RENDERS } from "@/lib/env";
 
 import NextDynamic from "next/dynamic";
+
+// ─────────────────────────────────────────────────────────────────────────
+// Global counter – lives on the window object so every tab shares it
+// ─────────────────────────────────────────────────────────────────────────
+declare global {
+  interface Window {
+    __activeRenders?: number;
+  }
+}
+
+if (typeof window !== "undefined") {
+  // Protect against “undefined → NaN” if the module runs twice in bfcache
+  window.__activeRenders = window.__activeRenders ?? 0;
+}
+
+// if (typeof window !== "undefined" && window.__activeRenders == null) {
+//   window.__activeRenders = 0; // initialise once
+// }
 
 function MobileBG() {
   // Fixed, behind everything, very light on mobile to avoid “white plates”
@@ -482,8 +501,14 @@ function BuilderPageInner() {
     usePreloadImage(bgCandidate);
   const { readyUrl: musicReadyUrl, status: musicStatus } =
     usePreloadAudio(musicCandidate);
-  const bgForPlayer: string | undefined = bgReadyUrl ?? undefined;
-  const musicForPlayer: string | undefined = musicReadyUrl ?? undefined;
+  // ----------------------------------------------------------------
+  // Gracefully ignore a missing / 404 asset so the render still works
+  // ----------------------------------------------------------------
+  const bgForPlayer: string | undefined =
+    bgStatus === "error" ? undefined : bgReadyUrl ?? undefined;
+
+  const musicForPlayer: string | undefined =
+    musicStatus === "error" ? undefined : musicReadyUrl ?? undefined;
 
   const playerKey = `${mode}-${template}-${bgForPlayer ?? "noBg"}-${
     musicForPlayer ?? "noMusic"
@@ -713,6 +738,19 @@ function BuilderPageInner() {
   }
 
   async function doExportLambda(preset: ExportPreset) {
+    //-----------------------------------------------------------------
+    // 1)  Guard: refuse if the tab already runs too many parallel jobs
+    //-----------------------------------------------------------------
+    if (typeof window !== "undefined") {
+      if ((window.__activeRenders ?? 0) >= MAX_PARALLEL_RENDERS) {
+        alert(
+          "Renderer is busy – please wait for the previous jobs to finish."
+        );
+        return;
+      }
+      window.__activeRenders! += 1;
+    }
+
     // ---- UI init -------------------------------------------------------------
     setLastPreset(preset);
     setExportingWhich(preset === "free" || preset === "hd" ? preset : "free");
@@ -720,6 +758,20 @@ function BuilderPageInner() {
     setPublicUrl(null);
     setRenderPct(0);
     setEtaText(null);
+
+    // --- Lambda-safe assets -------------------------------------------------
+    // If user uploaded an image, it's already a data: URL. Otherwise use bundle key.
+    const bgLambdaSafe = customBgDataUrl
+      ? customBgDataUrl
+      : `assets/backgrounds/${template}.jpg`;
+
+    // Music: custom upload stays data:, otherwise map curated/auto to bundle key
+    const defaultTrackForTemplate =
+      defaultMusicByTemplate[template]?.file || "";
+    // Your curatedMap currently points to "assets/music/....mp3" (see section 4 below)
+    const curatedPath = curatedMap[trackId] || defaultTrackForTemplate || "";
+    const musicLambdaSafe =
+      trackId === "none" ? null : customMusic || curatedPath || null;
 
     // ---- Composition & endpoint ---------------------------------------------
     const isVideoComposition = preset === "gif" ? true : isVideo;
@@ -775,8 +827,8 @@ function BuilderPageInner() {
       names,
       date,
       venue,
-      bg: bgForPlayer,
-      music: musicForPlayer,
+      bg: bgLambdaSafe,
+      music: musicLambdaSafe || undefined,
       musicVolume,
       tier,
       watermark: showWatermark,
@@ -892,7 +944,7 @@ function BuilderPageInner() {
       isVideoComposition || preset === "gif" || preset === "status";
 
     // generous deadlines (ms)
-    const DEADLINE_MS = isLongRender ? 6 * 60_000 : 3 * 60_000;
+    const DEADLINE_MS = isLongRender ? 12 * 60_000 : 6 * 60_000;
     const start = Date.now();
 
     // backoff state
@@ -979,12 +1031,10 @@ function BuilderPageInner() {
             finalUrl = signedUrl;
             break;
           }
-          await new Promise((r) =>
-            setTimeout(
-              r,
-              Math.min((backoff = Math.min(backoff * 1.4, 6000)), 6000)
-            )
-          );
+          await new Promise((r) => {
+            backoff = Math.min(backoff * 1.6, 15_000); // exponential, ≤ 15 s
+            setTimeout(r, backoff);
+          });
         }
       }
     } catch (err: any) {
@@ -1046,8 +1096,8 @@ function BuilderPageInner() {
             names,
             date,
             venue,
-            bg: bgForPlayer,
-            music: !!musicForPlayer,
+            bg: bgLambdaSafe,
+            music: musicLambdaSafe || undefined,
             brand: {
               id: brandId || undefined,
               name: brandName || undefined,
@@ -1071,6 +1121,13 @@ function BuilderPageInner() {
     } catch {
       // ignore
     } finally {
+      //-----------------------------------------------------------------
+      // 2)  Always decrement – even if the render fails
+      //-----------------------------------------------------------------
+      if (typeof window !== "undefined" && window.__activeRenders) {
+        window.__activeRenders -= 1;
+      }
+
       setExportingWhich(null);
       setRenderPct(null);
       setEtaText(null);

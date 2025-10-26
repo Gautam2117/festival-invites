@@ -68,11 +68,21 @@ type Props = {
    Utilities
 ============================================================================= */
 
-const resolveAsset = (src?: string | null) => {
-  if (!src) return null;
-  if (src.startsWith("data:")) return src;
-  const p = src.startsWith("/") ? src : `/${src}`;
-  return staticFile(p);
+
+
+// const resolveAsset = (src?: string | null) => {
+//   if (!src) return null;
+//   if (src.startsWith("data:")) return src;
+//   const p = src.startsWith("/") ? src : `/${src}`;
+//   return staticFile(p);
+// };
+
+
+const resolveAsset = (p?: string | null) => {
+  if (!p) return undefined;
+  if (/^data:/.test(p) || /^https?:\/\//.test(p)) return p;
+  const clean = p.replace(/^\/+/, '').replace(/^public\//, '');
+  return staticFile(clean);
 };
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
