@@ -37,6 +37,12 @@ import {
   Wand2,
 } from "lucide-react";
 
+const fieldCls =
+  "w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-[15px] shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500/60";
+const selectCls = fieldCls + " pr-9";
+const chipCls =
+  "inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50";
+
 // import DecorativeBG from "@/components/DecorativeBG";
 import { FestivalIntro } from "@/remotion/FestivalIntro";
 import { ImageCard } from "@/remotion/ImageCard";
@@ -106,7 +112,7 @@ function Card(props: PropsWithChildren<{ className?: string }>) {
   return (
     <div
       className={
-        "isolate rounded-2xl border border-white/60 bg-white/90 supports-[backdrop-filter]:md:backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.08)] " +
+        "isolate rounded-3xl border border-white/70 bg-white/90 supports-[backdrop-filter]:md:backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.10)] " +
         (props.className || "")
       }
     >
@@ -131,9 +137,9 @@ function Section({
     <details
       id={id}
       open={defaultOpen}
-      className="group rounded-2xl border border-white/60 bg-white/95 supports-[backdrop-filter]:md:backdrop-blur-xl scroll-mt-24"
+      className="group rounded-3xl border border-white/70 bg-white/95 supports-[backdrop-filter]:md:backdrop-blur-2xl shadow-sm hover:shadow-md transition-shadow scroll-mt-24"
     >
-      <summary className="list-none select-none cursor-pointer px-5 py-4 flex items-center justify-between">
+      <summary className="list-none select-none cursor-pointer px-6 py-5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="grid place-items-center h-8 w-8 rounded-xl bg-gradient-to-tr from-amber-400 via-rose-400 to-fuchsia-500 text-white shadow-sm">
             {icon}
@@ -1224,11 +1230,9 @@ function BuilderPageInner() {
       )}
 
       <main
-        className="mx-auto max-w-7xl px-4 py-10 overscroll-y-contain isolate"
+        className="mx-auto max-w-[90rem] px-5 md:px-8 py-10 overscroll-y-contain isolate"
         style={{
-          // bottom padding so the fixed mobile bar never overlaps content
-          paddingBottom: "calc(env(safe-area-inset-bottom) + 72px)",
-          // modern mobile viewport units to prevent jumpy sticky areas
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 88px)",
           minHeight: "100dvh",
           WebkitTapHighlightColor: "transparent",
         }}
@@ -1237,7 +1241,7 @@ function BuilderPageInner() {
         <motion.header
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
+          className="mb-10"
         >
           <div className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/90 px-3 py-1 text-sm shadow-sm supports-[backdrop-filter]:md:backdrop-blur isolate">
             <Sparkles className="h-4 w-4 text-brand-600" />
@@ -1276,10 +1280,10 @@ function BuilderPageInner() {
         </motion.header>
 
         {/* Grid: Step nav / Form / Preview */}
-        <div className="grid grid-cols-12 gap-6">
+        <div className="grid grid-cols-12 gap-6 xl:gap-8">
           {/* Step Nav - desktop */}
-          <aside className="hidden xl:block col-span-2">
-            <Card className="p-4 sticky top-6">
+          <aside className="hidden 2xl:block col-span-2">
+            <Card className="p-5 sticky top-8">
               <nav className="grid gap-2">
                 <AnchorButton href="#s1" label="Occasion & Language" />
                 <AnchorButton href="#s2" label="Details" />
@@ -1292,7 +1296,7 @@ function BuilderPageInner() {
           </aside>
 
           {/* Form */}
-          <section className="col-span-12 xl:col-span-6 space-y-4">
+          <section className="col-span-12 xl:col-span-7 2xl:col-span-6 space-y-4">
             {/* 1) Occasion & Language */}
             <Section
               id="s1"
@@ -1307,7 +1311,7 @@ function BuilderPageInner() {
                     <select
                       value={template}
                       onChange={(e) => setTemplate(e.target.value)}
-                      className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 pr-8"
+                      className={selectCls}
                     >
                       {templates.map((t) => (
                         <option key={t.id} value={t.slug}>
@@ -1327,7 +1331,7 @@ function BuilderPageInner() {
                   <select
                     value={language}
                     onChange={(e) => setLanguage(e.target.value as Lang)}
-                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2"
+                    className={selectCls}
                   >
                     <option value="en">English</option>
                     <option value="hi">हिंदी</option>
@@ -1352,7 +1356,7 @@ function BuilderPageInner() {
                   <input
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2"
+                    className={fieldCls}
                     placeholder={
                       copy[language].defaults[template]?.title ?? "Event Title"
                     }
@@ -1390,7 +1394,7 @@ function BuilderPageInner() {
                       <input
                         value={date}
                         onChange={(e) => setDate(e.target.value)}
-                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2"
+                        className={fieldCls}
                         placeholder={
                           copy[language].defaults[template]?.date ??
                           "Date and Time"
@@ -1410,7 +1414,7 @@ function BuilderPageInner() {
                       <input
                         value={venue}
                         onChange={(e) => setVenue(e.target.value)}
-                        className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2"
+                        className={fieldCls}
                         placeholder={
                           copy[language].defaults[template]?.venue ?? "Venue"
                         }
@@ -1427,7 +1431,7 @@ function BuilderPageInner() {
                   <input
                     value={ownerName}
                     onChange={(e) => setOwnerName(e.target.value)}
-                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2"
+                    className={fieldCls}
                     placeholder="e.g., Rahul Mehta"
                   />
                 </div>
@@ -1438,7 +1442,7 @@ function BuilderPageInner() {
                   <input
                     value={ownerOrg}
                     onChange={(e) => setOwnerOrg(e.target.value)}
-                    className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2"
+                    className={fieldCls}
                     placeholder="e.g., SkyLabs"
                   />
                 </div>
@@ -1477,7 +1481,7 @@ function BuilderPageInner() {
                   </label>
                   <button
                     type="button"
-                    className="inline-flex items-center justify-center rounded-xl border border-gray-300 px-3 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
+                    className={chipCls}
                     onClick={() => setCustomBgDataUrl(null)}
                     title="Use template default"
                   >
@@ -1500,7 +1504,7 @@ function BuilderPageInner() {
                   <select
                     value={trackId}
                     onChange={(e) => setTrackId(e.target.value as TrackId)}
-                    className="rounded-xl border border-gray-300 bg-white px-3 py-2"
+                    className={selectCls}
                   >
                     {curatedTracks.map((t) => (
                       <option key={t.id} value={t.id}>
@@ -1560,7 +1564,7 @@ function BuilderPageInner() {
                     <input
                       value={brandName}
                       onChange={(e) => setBrandName(e.target.value)}
-                      className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2"
+                      className={fieldCls}
                       placeholder="e.g., Botify"
                     />
                   </div>
@@ -1571,7 +1575,7 @@ function BuilderPageInner() {
                     <input
                       value={brandTagline}
                       onChange={(e) => setBrandTagline(e.target.value)}
-                      className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2"
+                      className={fieldCls}
                       placeholder="e.g., Wishes from our team"
                     />
                   </div>
@@ -1583,7 +1587,7 @@ function BuilderPageInner() {
                     <input
                       value={brandLogo}
                       onChange={(e) => setBrandLogo(e.target.value)}
-                      className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2"
+                      className={fieldCls}
                       placeholder="https://... or leave blank and upload"
                     />
                   </div>
@@ -1604,7 +1608,7 @@ function BuilderPageInner() {
                   </label>
                   <button
                     type="button"
-                    className="rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                    className={chipCls}
                     onClick={() => setBrandLogo("")}
                   >
                     Clear
@@ -1620,7 +1624,7 @@ function BuilderPageInner() {
                       onChange={(e) => setBrandPrimary(e.target.value)}
                     />
                     <input
-                      className="flex-1 rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                      className={`flex-1 ${fieldCls}`}
                       value={brandPrimary}
                       onChange={(e) => setBrandPrimary(e.target.value)}
                     />
@@ -1633,7 +1637,7 @@ function BuilderPageInner() {
                       onChange={(e) => setBrandSecondary(e.target.value)}
                     />
                     <input
-                      className="flex-1 rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                      className={`flex-1 ${fieldCls}`}
                       value={brandSecondary}
                       onChange={(e) => setBrandSecondary(e.target.value)}
                     />
@@ -1764,7 +1768,7 @@ function BuilderPageInner() {
             </Section>
 
             {/* Actions */}
-            <Card className="p-4">
+            <Card className="p-5">
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
@@ -1788,6 +1792,8 @@ function BuilderPageInner() {
                     ? "Working…"
                     : "Quick Wish (Instant Image)"}
                 </button>
+
+                <div className="w-full my-2 border-t border-gray-200" />
 
                 <button
                   type="button"
@@ -1824,6 +1830,8 @@ function BuilderPageInner() {
                   )}
                 </button>
 
+                <div className="w-full my-2 border-t border-gray-200" />
+
                 <button
                   type="button"
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 px-4 py-2 text-white text-sm font-medium shadow hover:opacity-95"
@@ -1857,6 +1865,8 @@ function BuilderPageInner() {
                     <>Unlock HD</>
                   )}
                 </button>
+
+                <div className="w-full my-2 border-t border-gray-200" />
 
                 <button
                   type="button"
@@ -1982,8 +1992,11 @@ function BuilderPageInner() {
           </section>
 
           {/* Preview */}
-          <section id="preview" className="col-span-12 xl:col-span-4">
-            <Card className="p-4 sticky top-[calc(env(safe-area-inset-top)+8px)] transform-gpu">
+          <section
+            id="preview"
+            className="col-span-12 xl:col-span-5 2xl:col-span-4"
+          >
+            <Card className="p-5 sticky top-[calc(env(safe-area-inset-top)+20px)] transform-gpu">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="font-display text-xl">
                   {isWish ? "Wish preview" : "Live preview"}
@@ -1993,7 +2006,7 @@ function BuilderPageInner() {
                   <button
                     type="button"
                     onClick={() => setMode("video")}
-                    className={`px-3 py-1.5 text-sm rounded-lg flex items-center gap-1.5 ${
+                    className={`px-3.5 py-2 text-sm rounded-lg flex items-center gap-1.5 ${
                       mode === "video"
                         ? "bg-indigo-600 text-white"
                         : "text-gray-800"
@@ -2005,7 +2018,7 @@ function BuilderPageInner() {
                   <button
                     type="button"
                     onClick={() => setMode("image")}
-                    className={`px-3 py-1.5 text-sm rounded-lg flex items-center gap-1.5 ${
+                    className={`px-3.5 py-2 text-sm rounded-lg flex items-center gap-1.5 ${
                       mode === "image"
                         ? "bg-indigo-600 text-white"
                         : "text-gray-800"
@@ -2021,7 +2034,7 @@ function BuilderPageInner() {
                 ref={previewRef}
                 className={`relative rounded-xl overflow-hidden border bg-white shadow-sm ${
                   mode === "video" ? "aspect-[9/16]" : "aspect-[1/1]"
-                } max-h-[80dvh]`}
+                } max-h-[84dvh]`}
               >
                 <div
                   className={`pointer-events-none absolute inset-0 sm:opacity-25 opacity-10 bg-gradient-to-tr ${meta.accent}`}
@@ -2126,7 +2139,7 @@ function BuilderPageInner() {
               </p>
 
               {downloadUrl && downloadName.endsWith(".png") && (
-                <div className="mt-4">
+                <div className="mt-4 max-h-[62dvh] overflow-auto rounded-2xl">
                   <SocialPreviewStudio
                     src={downloadUrl}
                     overlayTitle={undefined}

@@ -105,7 +105,7 @@ function getWishMontageFrames(wishes: unknown) {
 /* ============================================================================
    Default props (premium, festive, WhatsApp-first)
 ============================================================================ */
-const DEFAULT_BG = "/assets/bg/diwali.jpg";
+const DEFAULT_BG = "/assets/backgrounds/diwali.jpg";
 const DEFAULT_MUSIC_INTRO = "/assets/music/festive-brass.mp3";
 const DEFAULT_MUSIC_SOFT = "/assets/music/soft-bed.mp3";
 
