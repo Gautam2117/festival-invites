@@ -24,8 +24,8 @@ type BrandInput = {
   tagline?: string;
   primary?: string;
   secondary?: string;
-  ribbon?: boolean;   // visible on stills
-  endCard?: boolean;  // ignored on stills
+  ribbon?: boolean; // visible on stills
+  endCard?: boolean; // ignored on stills
 };
 
 type Props = {
@@ -36,6 +36,7 @@ type Props = {
   bg?: string;
   tier?: "free" | "hd";
   watermark?: boolean;
+  still?: boolean;
 
   /** Anti-crop watermark controls (optional) */
   watermarkStrategy?: "ribbon" | "tile" | "ribbon+tile";
@@ -59,12 +60,22 @@ type Props = {
 
 const resolveAsset = (p?: string | null) => {
   if (!p) return undefined;
-  if (/^data:/.test(p) || /^https?:\/\//.test(p)) return p;  // custom upload or absolute URL
-  // strip leading slashes and a mistaken `public/`
-  const clean = p.replace(/^\/+/, '').replace(/^public\//, '');
-  return staticFile(clean); // -> assets/… relative to public dir in the site
+  // allow data:, blob:, absolute http(s), and already-rooted paths (/...)
+  if (/^(data:|blob:|https?:\/\/|\/)/.test(p)) return p;
+  // normalize relative like "assets/..." → "/assets/..."
+  const clean = p.replace(/^\/+/, "").replace(/^public\//, "");
+  return staticFile(clean);
 };
 
+const needsCors = (url: string) => {
+  if (!/^https?:\/\//.test(url)) return false;            // data:, blob:, /assets/   => ✗
+  try {
+    const u = new URL(url, window.location.href);
+    return u.origin !== window.location.origin;           // other domain/sub-domain
+  } catch {
+    return false;
+  }
+};
 /* ============================================================================
    Utilities
 ============================================================================ */
@@ -92,7 +103,10 @@ const easeInOut = (t: number) => 0.5 - Math.cos(Math.PI * t) / 2;
    Atmosphere layers (sparkles, bokeh, garland, rangoli, grain)
 ============================================================================ */
 
-const Sparkles: React.FC<{ count: number; seed: string }> = ({ count, seed }) => {
+const Sparkles: React.FC<{ count: number; seed: string }> = ({
+  count,
+  seed,
+}) => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
 
@@ -172,7 +186,10 @@ const Bokeh: React.FC<{ count: number; seed: string }> = ({ count, seed }) => {
 };
 
 /** Top garland with gentle sway */
-const Garland: React.FC<{ t: number; colors: [string, string, string] }> = ({ t, colors }) => {
+const Garland: React.FC<{ t: number; colors: [string, string, string] }> = ({
+  t,
+  colors,
+}) => {
   const sway = Math.sin(t * 2.4) * 5;
   return (
     <div
@@ -213,7 +230,10 @@ const Garland: React.FC<{ t: number; colors: [string, string, string] }> = ({ t,
 };
 
 /** Bottom rangoli shimmer */
-const Rangoli: React.FC<{ t: number; colors: [string, string, string] }> = ({ t, colors }) => {
+const Rangoli: React.FC<{ t: number; colors: [string, string, string] }> = ({
+  t,
+  colors,
+}) => {
   const base = 1 + Math.sin(t * 2.2) * 0.04;
   return (
     <div
@@ -241,7 +261,15 @@ const Rangoli: React.FC<{ t: number; colors: [string, string, string] }> = ({ t,
           const angle = (i * Math.PI) / 4;
           const cx = 100 + Math.cos(angle) * 46;
           const cy = 100 + Math.sin(angle) * 46;
-          return <circle key={i} cx={cx} cy={cy} r="18" fill={i % 2 ? "url(#rg1)" : "url(#rg2)"} />;
+          return (
+            <circle
+              key={i}
+              cx={cx}
+              cy={cy}
+              r="18"
+              fill={i % 2 ? "url(#rg1)" : "url(#rg2)"}
+            />
+          );
         })}
         <circle cx="100" cy="100" r="12" fill={colors[0]} />
       </svg>
@@ -268,11 +296,11 @@ const Grain: React.FC<{ opacity?: number }> = ({ opacity = 0.06 }) => (
    Anti-crop watermarks
 ============================================================================ */
 
-const WatermarkTile: React.FC<{ text: string; opacity?: number; seed?: number }> = ({
-  text,
-  opacity = 0.18,
-  seed = 0,
-}) => {
+const WatermarkTile: React.FC<{
+  text: string;
+  opacity?: number;
+  seed?: number;
+}> = ({ text, opacity = 0.18, seed = 0 }) => {
   const { width, height } = useVideoConfig();
   const r = (k: number) => random(`wm-still-${seed}-${k}`);
   const stepX = 260;
@@ -321,6 +349,7 @@ const WatermarkTile: React.FC<{ text: string; opacity?: number; seed?: number }>
 
 export const ImageCard: React.FC<Props> = (props) => {
   const {
+    still = false,
     title,
     names,
     date,
@@ -339,8 +368,12 @@ export const ImageCard: React.FC<Props> = (props) => {
     accent,
   } = props;
 
-  const frame = useCurrentFrame();
+  // ✅ use a virtual frame for 1-frame stills
+  const rawFrame = useCurrentFrame();
   const { fps, width, height, durationInFrames } = useVideoConfig();
+  const isStill = durationInFrames === 1;
+  const frame = isStill ? 90 : rawFrame; // any number past your fades works
+
   const intro = spring({ frame, fps, config: { damping: 200, mass: 0.9 } });
   const t = frame / Math.max(1, fps);
 
@@ -352,9 +385,11 @@ export const ImageCard: React.FC<Props> = (props) => {
   // Watermark logic
   const mustWatermark = tier === "free" || !!watermark;
   const showRibbon =
-    mustWatermark && (watermarkStrategy === "ribbon" || watermarkStrategy === "ribbon+tile");
+    mustWatermark &&
+    (watermarkStrategy === "ribbon" || watermarkStrategy === "ribbon+tile");
   const showTile =
-    mustWatermark && (watermarkStrategy === "tile" || watermarkStrategy === "ribbon+tile");
+    mustWatermark &&
+    (watermarkStrategy === "tile" || watermarkStrategy === "ribbon+tile");
 
   const bgSrc = resolveAsset(bg);
 
@@ -366,7 +401,9 @@ export const ImageCard: React.FC<Props> = (props) => {
   });
 
   // Ken Burns for background
-  const kbScale = interpolate(frame, [0, 120], [1.06, 1.1], { extrapolateRight: "extend" });
+  const kbScale = interpolate(frame, [0, 120], [1.06, 1.1], {
+    extrapolateRight: "extend",
+  });
 
   // Title shimmer sweep
   const shimmer = easeInOut(clamp01((Math.sin(t * 1.6) + 1) / 2));
@@ -389,6 +426,7 @@ export const ImageCard: React.FC<Props> = (props) => {
       {bgSrc ? (
         <Img
           src={bgSrc}
+          {...(needsCors(bgSrc) ? { crossOrigin: "anonymous" } : {})}
           style={{
             position: "absolute",
             inset: 0,
@@ -554,7 +592,9 @@ export const ImageCard: React.FC<Props> = (props) => {
       )}
 
       {/* Anti-crop watermarks */}
-      {showTile && <WatermarkTile text={wmText} opacity={wmOpacity} seed={wmSeed} />}
+      {showTile && (
+        <WatermarkTile text={wmText} opacity={wmOpacity} seed={wmSeed} />
+      )}
 
       {showRibbon && (
         <div

@@ -12,6 +12,7 @@ import React, {
 import { motion, useReducedMotion } from "framer-motion";
 import { templates } from "@/templates";
 import { Search, Sparkles, Filter, X } from "lucide-react";
+import { canonicalSlug } from "@/utils/slug";
 
 /* --------------------------------- Types ---------------------------------- */
 type T = {
@@ -106,7 +107,7 @@ function LangChip({
 function PremiumCardSkeleton() {
   return (
     <div className="rounded-2xl bg-gradient-to-br from-ink-50 to-white p-[1px] dark:from-zinc-800/40 dark:to-zinc-800/10">
-      <article className="relative overflow-hidden rounded-[14px] bg-white/92 shadow-sm ring-1 ring-black/5 md:backdrop-blur dark:bg-zinc-900/60">
+      <article className="relative overflow-hidden rounded-[14px] bg-white/97 shadow-sm ring-1 ring-black/5 md:backdrop-blur-sm dark:bg-zinc-900/60">
         <div className="relative aspect-[16/9] w-full shimmer" />
         <div className="p-4">
           <div className="h-4 w-3/4 rounded bg-ink-200/60 dark:bg-white/10" />
@@ -192,7 +193,7 @@ function TemplateCard({
 
   return (
     <Link
-      href={`/builder?template=${t.slug}`}
+      href={{ pathname: "/builder", query: { template: canonicalSlug(t.slug) } }}
       className="group relative block focus:outline-none"
       aria-label={`Open ${t.title} template`}
       prefetch={false}
@@ -206,12 +207,19 @@ function TemplateCard({
           ring-0 ring-offset-2 ring-offset-white
           group-focus-visible:ring-4 group-focus-visible:ring-amber-500/40`}
       >
-        <article className="relative overflow-hidden rounded-[14px] bg-white/92 shadow-sm ring-1 ring-black/5 md:backdrop-blur dark:bg-zinc-900/60">
+        <article className="relative overflow-hidden rounded-[14px] bg-white/97 shadow-sm ring-1 ring-black/5 md:backdrop-blur-sm dark:bg-zinc-900/60">
           {/* Media */}
           <div className="relative aspect-[16/9] w-full">
             <div
-              className={`pointer-events-none absolute inset-0 bg-gradient-to-tr ${accent} opacity-[0.12]`}
+              className={`pointer-events-none absolute inset-0 bg-gradient-to-tr ${accent} opacity-[0.06]`}
+              style={{
+                WebkitMaskImage:
+                  "radial-gradient(220px 180px at 18% 8%, black, transparent 60%), radial-gradient(200px 200px at 110% 110%, black, transparent 60%)",
+                maskImage:
+                  "radial-gradient(220px 180px at 18% 8%, black, transparent 60%), radial-gradient(200px 200px at 110% 110%, black, transparent 60%)",
+              }}
             />
+
             {!ready && (
               <div className="absolute inset-0 shimmer rounded-[12px]" />
             )}
@@ -224,7 +232,7 @@ function TemplateCard({
               loading={priority ? undefined : "lazy"}
               decoding="async"
               sizes="(max-width:640px) 84vw, (max-width:1024px) 45vw, 30vw"
-              className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+              className="object-cover transition-[transform,filter] duration-300 group-hover:scale-[1.03] brightness-[1.03] contrast-[1.02] group-hover:brightness-[1.05]"
               style={{
                 willChange: "transform,opacity",
                 transform: "translateZ(0)",
@@ -235,7 +243,7 @@ function TemplateCard({
                 onFirstPaint?.();
               }}
             />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/35 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/15 to-transparent" />
             {finePointer && (
               <div className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                 <div className="rounded-xl bg-white/95 px-3 py-1.5 text-xs font-semibold text-ink-900 shadow-sm md:backdrop-blur">
@@ -286,7 +294,7 @@ function TemplateCard({
                 {t.languages.map((lang) => (
                   <span
                     key={lang}
-                    className="inline-flex items-center rounded-full border border-ink-200 bg-ink-50/70 px-2 py-0.5 text-[11px] font-medium text-ink-700"
+                    className="inline-flex items-center rounded-full ring-1 ring-white/60 bg-white/90 px-2 py-0.5 text-[11px] font-medium text-ink-800"
                   >
                     {lang}
                   </span>

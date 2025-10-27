@@ -10,8 +10,7 @@
 /* ────────────────────────────────────────────────────────── */
 
 /** `/assets/backgrounds/<slug>.jpg` – falls back to gradient if 404 */
-export const bgForTemplate = (slug: string): string =>
-  `/assets/backgrounds/${slug}.jpg`;
+export const bgForTemplate = (slug: string) => `/assets/backgrounds/${slug}.jpg`;
 
 /* ────────────────────────────────────────────────────────── */
 /* 2️⃣  Template → default background music                  */

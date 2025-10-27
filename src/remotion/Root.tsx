@@ -258,12 +258,14 @@ export const RemotionRoot: React.FC = () => {
       {/* -------------------------------------------------------------
          Square image (1:1) — still
       -------------------------------------------------------------- */}
-      <Still
+      <Composition
         id="image-card"
         component={ImageCard}
         schema={imageCardSchema}
+        fps={FPS}   
         width={1080}
         height={1080}
+        durationInFrames={120}
         defaultProps={{
           title: "Happy Diwali",
           names: "From the Sharma Family",

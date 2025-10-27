@@ -399,6 +399,7 @@ export const WishMontage: React.FC<Props> = ({
       {bgSrc ? (
         <Img
           src={bgSrc}
+          crossOrigin="anonymous"
           style={{
             position: "absolute",
             inset: 0,

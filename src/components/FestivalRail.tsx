@@ -147,7 +147,7 @@ function Card(p: CardProps) {
       prefetch={false}
       className="group block focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-amber-400/60 rounded-2xl"
       onMouseMove={onMove}
-      style={{ contain: "content", touchAction: "pan-y" }}
+      style={{ contain: "content" }}
     >
       <motion.div
         whileHover={hoverLift}
@@ -288,7 +288,7 @@ function Section({
 
   return (
     <section
-      className="mt-8 first:mt-0"
+      className="mt-10 first:mt-0"
       data-testid={testId}
       aria-busy={loading}
       aria-live="polite"
@@ -298,53 +298,16 @@ function Section({
     >
       <SectionHeader title={title} loading={loading} />
 
-      {/* Mobile rail (snap) */}
-      <div className="sm:hidden mt-3">
-        <div className="relative -mx-4 px-4">
-          {/* Edge fades (overlay, not mask) */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-white to-transparent"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-white to-transparent"
-          />
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+  {(loading ? Array.from({ length: skeletonCount }) : prepared).map((f, i) =>
+    loading ? (
+      <CardSkeleton key={`sk-${i}`} />
+    ) : (
+      <Card key={(f as CardProps).slug} {...(f as CardProps)} />
+    )
+  )}
+</div>
 
-          <div
-            className="no-scrollbar flex snap-x snap-mandatory [scroll-snap-stop:always] gap-3
-              overflow-x-auto overscroll-x-contain pb-2
-              touch-pan-x will-change-transform"
-            role="list"
-            aria-label={title}
-          >
-            {(loading
-              ? Array.from({ length: Math.min(6, skeletonCount) })
-              : prepared
-            ).map((f, idx) => (
-              <div
-                key={loading ? `sk-${idx}` : (f as CardProps).slug}
-                className="snap-start shrink-0 basis-[88%] xs:basis-[72%] min-w-0"
-                role="listitem"
-              >
-                {loading ? <CardSkeleton /> : <Card {...(f as CardProps)} />}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Desktop grid */}
-      <div className="mt-3 hidden grid-cols-2 gap-3 sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-        {(loading ? Array.from({ length: skeletonCount }) : prepared).map(
-          (f, i) =>
-            loading ? (
-              <CardSkeleton key={`desk-sk-${i}`} />
-            ) : (
-              <Card key={(f as CardProps).slug} {...(f as CardProps)} />
-            )
-        )}
-      </div>
     </section>
   );
 }

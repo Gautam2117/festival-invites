@@ -80,8 +80,10 @@ type Props = {
 
 const resolveAsset = (p?: string | null) => {
   if (!p) return undefined;
-  if (/^data:/.test(p) || /^https?:\/\//.test(p)) return p;
-  const clean = p.replace(/^\/+/, '').replace(/^public\//, '');
+  // allow data:, blob:, absolute http(s), and already-rooted paths (/...)
+  if (/^(data:|blob:|https?:\/\/|\/)/.test(p)) return p;
+  // normalize relative like "assets/..." → "/assets/..."
+  const clean = p.replace(/^\/+/, "").replace(/^public\//, "");
   return staticFile(clean);
 };
 
@@ -454,6 +456,7 @@ export const FestivalIntro: React.FC<Props> = (p) => {
       {bgSrc && (
         <Img
           src={bgSrc}
+          crossOrigin="anonymous"
           style={{
             position: "absolute",
             inset: 0,

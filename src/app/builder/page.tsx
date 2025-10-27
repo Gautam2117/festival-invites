@@ -4,7 +4,7 @@
  */
 "use client";
 export const dynamic = "force-dynamic";
-
+import { useSearchParams } from "next/navigation";
 import { loadRazorpay } from "@/lib/loadRazorpay";
 
 import {
@@ -59,6 +59,7 @@ import { nextFestival } from "@/lib/festivals";
 import { MAX_PARALLEL_RENDERS } from "@/lib/env";
 
 import NextDynamic from "next/dynamic";
+import { canonicalSlug } from "@/utils/slug";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Global counter – lives on the window object so every tab shares it
@@ -174,26 +175,6 @@ function AnchorButton({
       {label}
     </a>
   );
-}
-
-/* --------------------------------------------- */
-/* Query helper - no useSearchParams required    */
-/* --------------------------------------------- */
-function useQueryParam(name: string) {
-  const getNow = () =>
-    typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get(name) || ""
-      : "";
-
-  const [val, setVal] = useState(getNow);
-
-  useEffect(() => {
-    const handler = () => setVal(getNow());
-    window.addEventListener("popstate", handler);
-    return () => window.removeEventListener("popstate", handler);
-  }, [name]);
-
-  return val;
 }
 
 /* --------------------------------------------- */
@@ -409,6 +390,13 @@ function shortId(len = 8) {
   return out;
 }
 
+const normalizeAssetUrl = (p?: string | null): string | undefined => {
+  if (!p) return undefined;
+  if (/^(data:|blob:|https?:\/\/|\/)/.test(p)) return p;
+  return "/" + p.replace(/^public\//, "").replace(/^\/+/, "");
+};
+
+
 /* --------------------------------------------- */
 /* Inner page                                    */
 /* --------------------------------------------- */
@@ -416,20 +404,17 @@ function BuilderPageInner() {
   const prefersReducedMotion = useReducedMotion();
   const finePointer = useFinePointer();
 
-  const festivalSlugQP =
-    typeof window === "undefined"
-      ? ""
-      : new URLSearchParams(window.location.search)
-          .get("festival")
-          ?.toLowerCase() ?? "";
-
-  const directTemplateQP = useQueryParam("template");
+  const searchParams = useSearchParams();
+  const directTemplateQP = canonicalSlug(searchParams.get("template") ?? "");
+  const festivalSlugQP = (searchParams.get("festival") ?? "").toLowerCase();
 
   const mappedFromFestival = festivalSlugQP
     ? FESTIVAL_TO_TEMPLATE[festivalSlugQP]
     : "";
-  const initialSlug = directTemplateQP || mappedFromFestival || "diwali";
 
+  const initialSlug = canonicalSlug(
+    directTemplateQP || mappedFromFestival || "diwali"
+  );
   const [template, setTemplate] = useState(initialSlug);
   const [language, setLanguage] = useState<Lang>("en");
 
@@ -475,10 +460,13 @@ function BuilderPageInner() {
 
   const [inviteId] = useState<string>(() => shortId(8));
 
-  const meta = useMemo(
-    () => templates.find((t) => t.slug === template) ?? templates[0],
-    [template]
-  );
+  const meta = useMemo(() => {
+    const want = canonicalSlug(template);
+    return (
+      templates.find((t) => canonicalSlug(t.slug) === want) ?? templates[0]
+    );
+  }, [template]);
+
   const isVideo = mode === "video";
   const isWish = WISH_SLUGS.has(template);
 
@@ -503,15 +491,14 @@ function BuilderPageInner() {
       ? null
       : musicFromCurated);
 
-  const { readyUrl: bgReadyUrl, status: bgStatus } =
-    usePreloadImage(bgCandidate);
+  const { status: bgStatus } = usePreloadImage(bgCandidate);
   const { readyUrl: musicReadyUrl, status: musicStatus } =
     usePreloadAudio(musicCandidate);
   // ----------------------------------------------------------------
   // Gracefully ignore a missing / 404 asset so the render still works
   // ----------------------------------------------------------------
   const bgForPlayer: string | undefined =
-    bgStatus === "error" ? undefined : bgReadyUrl ?? undefined;
+    bgStatus === "error" ? undefined : normalizeAssetUrl(bgCandidate);
 
   const musicForPlayer: string | undefined =
     musicStatus === "error" ? undefined : musicReadyUrl ?? undefined;
@@ -547,12 +534,14 @@ function BuilderPageInner() {
     defaultsRef.current = next;
   };
 
+  // keep template in sync with the current URL at all times (client nav)
   useEffect(() => {
-    if (mappedFromFestival && mappedFromFestival !== template) {
-      setTemplate(mappedFromFestival);
-    }
+    const next = canonicalSlug(
+      directTemplateQP || mappedFromFestival || "diwali"
+    );
+    if (next && next !== template) setTemplate(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [directTemplateQP, mappedFromFestival]);
 
   useEffect(() => {
     syncDefaults(template, language);
@@ -648,19 +637,6 @@ function BuilderPageInner() {
       })
       .catch(() => {});
   }, []);
-
-  useEffect(() => {
-    // picked directly via ?template=…           ↴
-    if (directTemplateQP && directTemplateQP !== template) {
-      setTemplate(directTemplateQP);
-      return; // ⬅ early-exit so festival logic below doesn’t overwrite it
-    }
-
-    // mapped via ?festival=… → FESTIVAL_TO_TEMPLATE
-    if (mappedFromFestival && mappedFromFestival !== template) {
-      setTemplate(mappedFromFestival);
-    }
-  }, [directTemplateQP, mappedFromFestival, template]);
 
   function handleContinue() {
     document
@@ -827,6 +803,7 @@ function BuilderPageInner() {
     const tier = isHd ? "hd" : "free";
     const showWatermark = !isHd;
     const watermarkId = `wm_${Math.random().toString(36).slice(2, 8)}`;
+    const isStillImage = compositionId === "image-card" && preset !== "gif";
 
     const inputProps: any = {
       title,
@@ -844,6 +821,7 @@ function BuilderPageInner() {
       wmOpacity,
       isWish,
       watermarkId,
+      still: isStillImage,
       brand: {
         id: brandId || undefined,
         name: brandName || undefined,
@@ -865,7 +843,7 @@ function BuilderPageInner() {
 
     // Still images use a single frame + image format
     if (compositionId === "image-card" && preset !== "gif") {
-      payload.frame = 0;
+      payload.frame = 60;
       payload.format = "png";
     }
 
@@ -1314,7 +1292,7 @@ function BuilderPageInner() {
                       className={selectCls}
                     >
                       {templates.map((t) => (
-                        <option key={t.id} value={t.slug}>
+                        <option key={t.id} value={canonicalSlug(t.slug)}>
                           {t.title}
                         </option>
                       ))}
